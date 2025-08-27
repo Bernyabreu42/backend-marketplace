@@ -1,0 +1,21 @@
+meta {
+  name: create
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{url}}/taxes/
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "name": "ITBIS 30%",
+    "type": "discount",
+    "rate": 30,
+    "description": "Descuento de $100 por promocion del dia de los padres",
+    "storeId": "6a8e6cf2-b7de-41f7-835a-ec6bed95428e"
+  }
+}

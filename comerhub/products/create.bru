@@ -1,0 +1,27 @@
+meta {
+  name: create
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{url}}/products
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "name": "Smart Watch",
+    "description": "Samsung Watch 4 classic",
+    "categories": [
+      "e6e2999f-8be2-4195-922f-c48a9a336ddb"
+    ],
+    "taxes": ["3c917bd6-4c72-49df-989f-101dbd340401"],
+    "price": 12500,
+    "priceFinal":13000,
+    "stock": 1,
+    "status": "active",
+    "storeId": "338f15c4-cbee-4757-ba7e-13305f7bbaa9"
+  }
+}

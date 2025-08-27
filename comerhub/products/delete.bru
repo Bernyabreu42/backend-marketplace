@@ -1,0 +1,15 @@
+meta {
+  name: delete
+  type: http
+  seq: 6
+}
+
+delete {
+  url: {{url}}/products/:id
+  body: json
+  auth: inherit
+}
+
+params:path {
+  id: 270ccc7e-58ad-431c-977b-40d7efbd69d0
+}

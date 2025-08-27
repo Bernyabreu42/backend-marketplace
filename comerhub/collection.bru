@@ -1,0 +1,12 @@
+auth {
+  mode: basic
+}
+
+auth:basic {
+  username: admin
+  password: supersecreta123
+}
+
+vars:pre-request {
+  url: http://localhost:4000/api
+}

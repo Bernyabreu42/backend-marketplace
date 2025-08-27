@@ -1,0 +1,15 @@
+meta {
+  name: get related products
+  type: http
+  seq: 8
+}
+
+get {
+  url: {{url}}/products/:id/related
+  body: json
+  auth: inherit
+}
+
+params:path {
+  id: 4270fa87-e6c7-47ce-bd98-9f9ba89aca83
+}

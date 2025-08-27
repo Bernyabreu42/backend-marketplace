@@ -1,0 +1,21 @@
+meta {
+  name: update
+  type: http
+  seq: 4
+}
+
+patch {
+  url: {{url}}/users/update/:id
+  body: json
+  auth: inherit
+}
+
+params:path {
+  id: 653d8fd2-78f0-4e8e-8247-9ebadeda7add
+}
+
+body:json {
+  {
+      "role": "admin"
+  }
+}

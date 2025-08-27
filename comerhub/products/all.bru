@@ -1,0 +1,16 @@
+meta {
+  name: all
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{url}}/products?page=1&limit=10
+  body: none
+  auth: inherit
+}
+
+params:query {
+  page: 1
+  limit: 10
+}

@@ -1,0 +1,19 @@
+meta {
+  name: update store
+  type: http
+  seq: 3
+}
+
+patch {
+  url: {{url}}/stores/:id
+  body: json
+  auth: inherit
+}
+
+params:path {
+  id: 
+}
+
+headers {
+  cookie: accessToken=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjgxODU2ZGZhLWM1MWYtNDVlMy1hOGU4LTk2YzI0MzE1N2MwMyIsImlhdCI6MTc1NDkwOTY4NSwiZXhwIjoxNzU0OTEwNTg1fQ.8Lf2Fpd01Tq_ww_97hdseLCuI0WIDDkyWVZ5rQ1-YZs; refreshToken=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjgxODU2ZGZhLWM1MWYtNDVlMy1hOGU4LTk2YzI0MzE1N2MwMyIsImlhdCI6MTc1NDkwOTY4NSwiZXhwIjoxNzU1NTE0NDg1fQ.-zOaGhxE7BjNpMhFI5L9SD8Vfac52yK0nYhfoBc3Ftg
+}

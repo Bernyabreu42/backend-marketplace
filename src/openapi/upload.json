@@ -1,0 +1,148 @@
+{
+  "paths": {
+    "/api/upload-image/single": {
+      "post": {
+        "tags": [
+          "Upload"
+        ],
+        "summary": "Subir una imagen",
+        "security": [
+          {
+            "basicAuth": [],
+            "accessCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "image": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "Archivo de imagen"
+                  },
+                  "folder": {
+                    "type": "string",
+                    "description": "Carpeta destino (opcional). Ej: general, products/123"
+                  }
+                },
+                "required": [
+                  "image"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "url"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "url": {
+                      "type": "string",
+                      "example": "/uploads/general/abc.jpg"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Archivo faltante o formato inválido"
+          }
+        }
+      }
+    },
+    "/api/upload-image/multiple": {
+      "post": {
+        "tags": [
+          "Upload"
+        ],
+        "summary": "Subir múltiples imágenes",
+        "security": [
+          {
+            "basicAuth": [],
+            "accessCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "images": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "binary"
+                    },
+                    "maxItems": 5,
+                    "description": "Hasta 5 archivos"
+                  },
+                  "folder": {
+                    "type": "string",
+                    "description": "Carpeta destino (opcional)"
+                  }
+                },
+                "required": [
+                  "images"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "urls"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "urls": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "example": [
+                        "/uploads/general/a.jpg",
+                        "/uploads/general/b.jpg"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Archivos faltantes o formato inválido"
+          }
+        }
+      }
+    }
+  }
+}

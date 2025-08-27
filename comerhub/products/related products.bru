@@ -1,0 +1,24 @@
+meta {
+  name: related products
+  type: http
+  seq: 7
+}
+
+post {
+  url: {{url}}/products/:id/related
+  body: json
+  auth: inherit
+}
+
+params:path {
+  id: 4270fa87-e6c7-47ce-bd98-9f9ba89aca83
+}
+
+body:json {
+  {
+    "relatedProductIds": [
+      "5df5943c-e9d7-4ef9-92b8-e771abf4d45f",
+      "4270fa87-e6c7-47ce-bd98-9f9ba89aca83"
+    ]
+  }
+}

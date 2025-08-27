@@ -1,0 +1,21 @@
+meta {
+  name: restore
+  type: http
+  seq: 7
+}
+
+patch {
+  url: {{url}}/taxes/:id/restore
+  body: json
+  auth: inherit
+}
+
+params:path {
+  id: b6b0df82-90de-4e91-842c-139ea32b4b57
+}
+
+body:json {
+  {
+   "isDelete":false
+  }
+}

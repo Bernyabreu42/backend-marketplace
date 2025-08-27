@@ -1,0 +1,22 @@
+meta {
+  name: update
+  type: http
+  seq: 4
+}
+
+patch {
+  url: {{url}}/categories/:id
+  body: json
+  auth: inherit
+}
+
+params:path {
+  id: e6e2999f-8be2-4195-922f-c48a9a336ddb
+}
+
+body:json {
+  {
+    "name": "Electrónica y gadget",
+    "slug": "electronica-gadget"
+  }
+}

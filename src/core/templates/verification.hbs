@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Verificación de Cuenta</title>
+  <style>
+    body { font-family: Arial, sans-serif; background-color: #f9f9f9; color: #333; padding: 20px; }
+    .container { background-color: #fff; padding: 30px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+    .button { display: inline-block; padding: 10px 20px; background-color: #4CAF50; color: #fff !important; text-decoration: none; border-radius: 5px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>¡Verifica tu cuenta en Health Friend SRL!</h2>
+    <p>Hola {{name}},</p>
+    <p>
+      ¡Gracias por registrarte en <strong>Health Friend SRL</strong>!<br>
+      Para activar tu cuenta y comenzar a utilizar todos los servicios, por favor verifica tu dirección de correo electrónico haciendo clic en el siguiente botón:
+    </p>
+    <p>
+      <a href="{{verificationUrl}}" class="button">Verificar mi cuenta</a>
+    </p>
+    <p>Si no has creado esta cuenta, puedes ignorar este mensaje.</p>
+    <p>¡Bienvenido a la comunidad!</p>
+    <p>El equipo de Health Friend SRL</p>
+  </div>
+</body>
+</html>

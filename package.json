@@ -1,0 +1,44 @@
+{
+  "name": "commercehub",
+  "module": "index.ts",
+  "type": "module",
+  "scripts": {
+    "dev": "bun run  --watch src/server.ts",
+    "test": "bun run src/test.ts",
+    "db:dev": "bunx prisma migrate dev",
+    "db:reset": "bunx prisma migrate reset --force",
+    "db:seed": "bunx prisma db seed",
+    "openapi:build": "bun run scripts/merge-openapi.ts"
+  },
+  "prisma": {
+    "seed": "bun run prisma/seed.ts"
+  },
+  "devDependencies": {
+    "@types/bcrypt": "5.0.2",
+    "@types/bun": "latest",
+    "@types/cookie-parser": "1.4.8",
+    "@types/express": "5.0.1",
+    "@types/jsonwebtoken": "9.0.9"
+  },
+  "peerDependencies": {
+    "typescript": "5.0.0"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.14.0",
+    "@scalar/express-api-reference": "^0.8.13",
+    "@types/cors": "^2.8.17",
+    "@types/multer": "^1.4.13",
+    "@types/nodemailer": "^6.4.17",
+    "bcrypt": "5.1.1",
+    "cookie-parser": "1.4.7",
+    "cors": "2.8.5",
+    "express": "4.21.2",
+    "handlebars": "^4.7.8",
+    "jsonwebtoken": "9.0.2",
+    "multer": "^2.0.1",
+    "nodemailer": "^6.10.1",
+    "prisma": "^6.14.0",
+    "sharp": "^0.34.2",
+    "zod": "^3.24.4"
+  }
+}

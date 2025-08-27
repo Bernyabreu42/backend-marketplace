@@ -1,0 +1,262 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum TaxType {
+  percentage
+  fixed
+  discount
+}
+
+enum ProductStatus {
+  active
+  inactive
+  draft
+}
+
+enum StatusDelete {
+  active
+  inactive
+  deleted
+}
+
+enum StatusStore {
+  pending
+  active
+  inactive
+  banned
+  deleted
+}
+
+enum UserStatus {
+  active
+  disabled
+}
+
+enum RolesEnum {
+  admin
+  seller
+  buyer
+  support
+}
+
+model User {
+  id    String @id @default(uuid())
+  email String @unique
+
+  firstName   String?
+  lastName    String?
+  displayName String?
+
+  username      String?
+  phone         String?
+  status        UserStatus @default(active)
+  profileImage  String?
+  role          RolesEnum  @default(buyer)
+  isOnline      Boolean    @default(false)
+  emailVerified Boolean
+  lastLogin     DateTime?
+  lastSeenAt    DateTime?
+  password      String
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  // Soft delete / auditoría
+  isDeleted Boolean   @default(false)
+  deletedAt DateTime?
+  deletedBy String?
+
+  sessions Session[]
+  order    Order[]
+  store    Store?
+  reviews  Review[]
+}
+
+model Session {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  refreshToken String  @unique // token opaco; idealmente guarda HASH
+  userAgent    String?
+  ip           String?
+  deviceId     String? // opcional: identifica dispositivo
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  expiresAt DateTime
+
+  revoked   Boolean   @default(false)
+  revokedAt DateTime?
+
+  @@index([userId])
+  @@index([userId, revoked, expiresAt]) // para "sesiones activas"
+  @@index([expiresAt])
+}
+
+model Store {
+  id          String      @id @default(uuid())
+  name        String
+  tagline     String?
+  description String
+  email       String?
+  phone       String?
+  address     String?
+  website     String?
+  logo        String?
+  banner      String?
+  facebook    String?
+  instagram   String?
+  twitter     String?
+  youtube     String?
+  status      StatusStore
+
+  // SEO
+  keywords  String?
+  metaTitle String?
+  metaDesc  String?
+
+  // Horarios
+  businessHours Json?
+
+  // Relaciones
+  ownerId  String    @unique
+  owner    User      @relation(fields: [ownerId], references: [id])
+  taxes    Tax[] // ✅ relación 1:N
+  products Product[]
+  orders   Order[]
+
+  // Soft delete / auditoría
+  isDeleted Boolean   @default(false)
+  deletedAt DateTime?
+  deletedBy String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  reviews   Review[]
+}
+
+model Tax {
+  id          String       @id @default(uuid())
+  name        String
+  type        TaxType
+  rate        Float // puede ser 15.0 para 15% o 100.0 para monto fijo
+  description String?
+  status      StatusDelete
+
+  // Relación con Store
+  storeId String
+  store   Store  @relation(fields: [storeId], references: [id])
+
+  //Relación con producto
+  productTax ProductTax[]
+
+  // Soft delete / auditoría
+  isDeleted Boolean   @default(false)
+  deletedAt DateTime?
+  deletedBy String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ProductTax {
+  productId String
+  taxId     String
+  product   Product @relation(fields: [productId], references: [id])
+  tax       Tax     @relation(fields: [taxId], references: [id])
+
+  @@id([productId, taxId])
+}
+
+model Product {
+  id              String        @id @default(uuid())
+  name            String
+  description     String
+  sku             String?       @unique
+  price           Float         @default(0)
+  priceFinal      Float         @default(0)
+  taxes           ProductTax[]
+  stock           Int
+  images          String[]
+  status          ProductStatus @default(active)
+  metaTitle       String?
+  metaDescription String?
+
+  storeId String
+  store   Store  @relation(fields: [storeId], references: [id])
+
+  // Relaciones
+  relatedProducts Product[] @relation("RelatedProducts")
+  relatedBy       Product[] @relation("RelatedProducts")
+
+  categories Category[] @relation("ProductCategories")
+
+  orderItem OrderItem[]
+  review    Review[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Category {
+  id        String    @id @default(uuid())
+  name      String
+  slug      String    @unique
+  products  Product[] @relation("ProductCategories")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Order {
+  id      String @id @default(uuid())
+  userId  String
+  storeId String
+  total   Float
+  status  String @default("pending")
+
+  user  User        @relation(fields: [userId], references: [id])
+  store Store       @relation(fields: [storeId], references: [id])
+  items OrderItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model OrderItem {
+  id        String   @id @default(uuid())
+  orderId   String
+  productId String
+  quantity  Int
+  order     Order    @relation(fields: [orderId], references: [id])
+  product   Product  @relation(fields: [productId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Review {
+  id        String  @id @default(uuid())
+  rating    Int // por ejemplo: de 1 a 5
+  comment   String?
+  userId    String
+  productId String
+  storeId   String
+
+  user    User    @relation(fields: [userId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+  store   Store   @relation(fields: [storeId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

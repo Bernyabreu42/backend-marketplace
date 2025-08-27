@@ -1,0 +1,23 @@
+meta {
+  name: crear
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{url}}/stores
+  body: json
+  auth: inherit
+}
+
+headers {
+  cookie: 
+  accessToken=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6Ijk3NzRmNjQyLTNjZDMtNGU3OS1hYjE3LTRhMGExNmFmYjAwOSIsImlhdCI6MTc1MDQ0NjA4MSwiZXhwIjoxNzUwNDQ2OTgxfQ.o51H5zdC3BpX74TgRimRzmvufFhveSAbkDIWmHniEE8; refreshToken=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6Ijk3NzRmNjQyLTNjZDMtNGU3OS1hYjE3LTRhMGExNmFmYjAwOSIsImlhdCI6MTc1MDQ0NjA4MSwiZXhwIjoxNzUxMDUwODgxfQ.gUgFVkVIUUV2PWC--SSuCIQw6LQNNeRSMTfAFfvyhYI
+}
+
+body:json {
+  {
+    "name":"Mi casita RD",
+    "description":"La casita donde encuentras todo lo que buscas"
+  }
+}
