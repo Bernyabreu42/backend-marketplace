@@ -1261,6 +1261,10 @@
   },
   "servers": [
     {
+      "url": "https://backend-marketplace-3.onrender.com",
+      "description": "Test production"
+    },
+    {
       "url": "http://localhost:4000",
       "description": "Local"
     }

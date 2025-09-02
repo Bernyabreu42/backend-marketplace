@@ -14,8 +14,6 @@ export const storePublicSelect = {
   twitter: true,
   youtube: true,
   status: true,
-  profileImage: true,
-  bannerImage: true,
   keywords: true,
   metaTitle: true,
   metaDesc: true,

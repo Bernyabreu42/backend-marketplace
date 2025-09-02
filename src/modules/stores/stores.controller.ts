@@ -20,6 +20,7 @@ export const createStore = async (req: Request, res: Response) => {
   }
 
   const { id, role } = req.user;
+  console.log({ id, role });
 
   // 1) Validación + normalización
   const parsed = validateCreateStore(req.body);
