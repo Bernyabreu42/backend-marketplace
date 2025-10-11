@@ -51,7 +51,7 @@ async function main() {
   });
 
   await prisma.user.upsert({
-    where: { email },
+    where: { email: "buyer@gmail.com" },
     update: { password: hash },
     create: {
       firstName: "Comprador",
@@ -67,7 +67,7 @@ async function main() {
   });
 
   await prisma.user.upsert({
-    where: { email },
+    where: { email: "support@gmail.com" },
     update: { password: hash },
     create: {
       firstName: "Berny Willy",
@@ -83,7 +83,7 @@ async function main() {
   });
 
   const seller = await prisma.user.upsert({
-    where: { email },
+    where: { email: "seller@gmail.com" },
     update: { password: hash },
     create: {
       firstName: "Vendedor",
