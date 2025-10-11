@@ -8,7 +8,6 @@ import {
   TaxType,
 } from "@prisma/client";
 import bcrypt from "bcrypt";
-
 import { env } from "../src/config/env";
 import { RolesEnum, UserStatusEnum } from "../src/core/enums";
 
@@ -22,86 +21,90 @@ const slugify = (value: string) =>
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/(^-|-$)+/g, "");
 
+async function safeFindOrCreate(model: any, where: any, data: any) {
+  const existing = await model.findFirst({ where });
+  if (existing) return existing;
+  return await model.create({ data });
+}
+
 async function main() {
-  const email = env.SEED_ADMIN_EMAIL ?? "";
+  const email = env.SEED_ADMIN_EMAIL?.trim().toLowerCase() ?? "";
   const pwd = env.SEED_ADMIN_PASSWORD ?? "";
 
-  if (!email || !pwd) {
-    throw new Error(
-      "SEED_ADMIN_EMAIL y SEED_ADMIN_PASSWORD deben estar definidos en el entorno"
-    );
-  }
+  if (!email || !pwd)
+    throw new Error("Faltan SEED_ADMIN_EMAIL o SEED_ADMIN_PASSWORD");
 
   const hash = await bcrypt.hash(pwd, 12);
 
-  await prisma.user.upsert({
-    where: { email },
-    update: { password: hash },
-    create: {
+  // --- Usuarios ---
+  const usersSeed = [
+    {
+      email,
       firstName: "Berny Willy",
       lastName: "Abreu Bautista",
       phone: "8294602725",
       username: "Berny Abreu",
-      email: email.trim().toLowerCase(),
-      password: hash,
       role: RolesEnum.ADMIN,
-      status: UserStatusEnum.ACTIVE,
-      emailVerified: true,
     },
-  });
-
-  await prisma.user.upsert({
-    where: { email: "buyer@gmail.com" },
-    update: { password: hash },
-    create: {
+    {
+      email: "buyer@gmail.com",
       firstName: "Comprador",
       lastName: "",
       phone: "0000000000",
       username: "",
-      email: "buyer@gmail.com",
-      password: hash,
       role: RolesEnum.BUYER,
-      status: UserStatusEnum.ACTIVE,
-      emailVerified: true,
     },
-  });
-
-  await prisma.user.upsert({
-    where: { email: "support@gmail.com" },
-    update: { password: hash },
-    create: {
+    {
+      email: "support@gmail.com",
       firstName: "Berny Willy",
       lastName: "Abreu Bautista",
       phone: "8294602725",
       username: "Berny Abreu",
-      email: "support@gmail.com",
-      password: hash,
       role: RolesEnum.SUPPORT,
-      status: UserStatusEnum.ACTIVE,
-      emailVerified: true,
     },
-  });
-
-  const seller = await prisma.user.upsert({
-    where: { email: "seller@gmail.com" },
-    update: { password: hash },
-    create: {
+    {
+      email: "seller@gmail.com",
       firstName: "Vendedor",
       lastName: "",
       phone: "0000000000",
       username: "",
-      email: "seller@gmail.com",
-      password: hash,
       role: RolesEnum.SELLER,
-      status: UserStatusEnum.ACTIVE,
-      emailVerified: true,
     },
-  });
+  ];
 
-  const sellerStore = await prisma.store.upsert({
-    where: { ownerId: seller.id },
-    update: {},
-    create: {
+  for (const u of usersSeed) {
+    const normalizedEmail = u.email.trim().toLowerCase();
+    const existing = await prisma.user.findFirst({
+      where: { email: normalizedEmail },
+    });
+    if (!existing) {
+      await prisma.user.create({
+        data: {
+          ...u,
+          email: normalizedEmail,
+          password: hash,
+          status: UserStatusEnum.ACTIVE,
+          emailVerified: true,
+        },
+      });
+    } else {
+      await prisma.user.update({
+        where: { id: existing.id },
+        data: { password: hash },
+      });
+    }
+  }
+
+  const seller = await prisma.user.findFirst({
+    where: { email: "seller@gmail.com" },
+  });
+  if (!seller) throw new Error("No se pudo crear el usuario vendedor.");
+
+  // --- Tienda del vendedor ---
+  const sellerStore = await safeFindOrCreate(
+    prisma.store,
+    { ownerId: seller.id },
+    {
       ownerId: seller.id,
       name: "CommerceHub Central",
       tagline: "Todo lo que necesitas en un solo lugar",
@@ -123,12 +126,10 @@ async function main() {
         { day: "saturday", open: "10:00", close: "14:00" },
         { day: "sunday", open: "00:00", close: "00:00", closed: true },
       ],
-    },
-    select: { id: true },
-  });
+    }
+  );
 
-  // --- Crear métodos de envío para la tienda semilla ---
-  console.log("Creando métodos de envío para la tienda semilla...");
+  // --- Métodos de envío ---
   const shippingMethodsSeed = [
     {
       name: "Envío Estándar",
@@ -148,35 +149,24 @@ async function main() {
   ];
 
   for (const method of shippingMethodsSeed) {
-    const existingMethod = await prisma.shippingMethod.findFirst({
-      where: {
-        name: method.name,
-        storeId: sellerStore.id,
-      },
-    });
-
-    if (!existingMethod) {
-      await prisma.shippingMethod.create({
-        data: {
-          ...method,
-          storeId: sellerStore.id,
-        },
-      });
-    }
+    await safeFindOrCreate(
+      prisma.shippingMethod,
+      { name: method.name, storeId: sellerStore.id },
+      { ...method, storeId: sellerStore.id }
+    );
   }
 
-  // --- Crear cuentas de lealtad para todos los usuarios ---
-  const allUsersForLoyalty = await prisma.user.findMany({
-    select: { id: true },
-  });
-  for (const { id } of allUsersForLoyalty) {
-    await prisma.loyaltyAccount.upsert({
-      where: { userId: id },
-      update: {},
-      create: { userId: id },
-    });
+  // --- Cuentas de lealtad ---
+  const allUsers = await prisma.user.findMany({ select: { id: true } });
+  for (const { id } of allUsers) {
+    await safeFindOrCreate(
+      prisma.loyaltyAccount,
+      { userId: id },
+      { userId: id }
+    );
   }
 
+  // --- Categorías ---
   const categoryNames = [
     "Electrónica",
     "Moda y Accesorios",
@@ -189,17 +179,16 @@ async function main() {
     "Mascotas",
     "Ferretería y Herramientas",
   ];
+  for (const name of categoryNames) {
+    await safeFindOrCreate(
+      prisma.category,
+      { slug: slugify(name) },
+      { name, slug: slugify(name) }
+    );
+  }
+  const categories = await prisma.category.findMany();
 
-  await prisma.category.createMany({
-    data: categoryNames.map((name) => ({ name, slug: slugify(name) })),
-    skipDuplicates: true,
-  });
-
-  const categories = await prisma.category.findMany({
-    where: { slug: { in: categoryNames.map((name) => slugify(name)) } },
-    select: { id: true, slug: true },
-  });
-
+  // --- Impuestos ---
   const taxesSeed = [
     {
       name: "IVA General",
@@ -220,31 +209,18 @@ async function main() {
       description: "Tarifa fija por manejo y logística",
     },
   ];
-
-  const taxes: Array<{ id: string }> = [];
   for (const tax of taxesSeed) {
-    const existing = await prisma.tax.findFirst({
-      where: { name: tax.name, storeId: sellerStore.id },
-      select: { id: true },
-    });
-
-    if (existing) {
-      taxes.push(existing);
-      continue;
-    }
-
-    const created = await prisma.tax.create({
-      data: {
-        ...tax,
-        status: "active",
-        storeId: sellerStore.id,
-      },
-      select: { id: true },
-    });
-
-    taxes.push(created);
+    await safeFindOrCreate(
+      prisma.tax,
+      { name: tax.name, storeId: sellerStore.id },
+      { ...tax, status: "active", storeId: sellerStore.id }
+    );
   }
+  const taxes = await prisma.tax.findMany({
+    where: { storeId: sellerStore.id },
+  });
 
+  // --- Descuentos ---
   const discountsSeed = [
     {
       name: "Descuento de bienvenida",
@@ -259,27 +235,17 @@ async function main() {
       description: "Descuento fijo para artículos seleccionados",
     },
   ];
-
   for (const discount of discountsSeed) {
-    const exists = await prisma.discount.findFirst({
-      where: { name: discount.name, storeId: sellerStore.id },
-      select: { id: true },
-    });
-
-    if (exists) continue;
-
-    await prisma.discount.create({
-      data: {
-        ...discount,
-        status: "active",
-        storeId: sellerStore.id,
-      },
-    });
+    await safeFindOrCreate(
+      prisma.discount,
+      { name: discount.name, storeId: sellerStore.id },
+      { ...discount, status: "active", storeId: sellerStore.id }
+    );
   }
 
+  // --- Promociones ---
   const now = new Date();
   const inThirtyDays = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-
   const promotionsSeed = [
     {
       name: "Promo de verano",
@@ -298,490 +264,87 @@ async function main() {
       endsAt: inThirtyDays,
     },
   ];
-
   for (const promo of promotionsSeed) {
-    const exists = await prisma.promotion.findFirst({
-      where: { name: promo.name, storeId: sellerStore.id },
-      select: { id: true },
-    });
-
-    if (exists) {
-      await prisma.promotion.update({
-        where: { id: exists.id },
-        data: {
-          type: promo.type,
-          value: promo.value ?? null,
-          code: promo.code ?? null,
-          description: promo.description,
-          startsAt: promo.startsAt,
-          endsAt: promo.endsAt,
-        },
-      });
-      continue;
-    }
-
-    await prisma.promotion.create({
-      data: {
-        ...promo,
-        value: promo.value ?? null,
-        code: promo.code ?? null,
-        status: "active",
-        storeId: sellerStore.id,
-      },
-    });
+    await safeFindOrCreate(
+      prisma.promotion,
+      { name: promo.name, storeId: sellerStore.id },
+      { ...promo, status: "active", storeId: sellerStore.id }
+    );
   }
 
-  const productExists = await prisma.product.findFirst({
-    where: { name: 'Laptop Pro 15"' },
+  // --- Productos ---
+  const discountToApply = await prisma.discount.findFirst({
+    where: { name: "Liquidación de temporada" },
   });
-
-  if (!productExists) {
-    const productCategories = categories
-      .filter((category) =>
-        ["electronica", "hogar-y-cocina"].includes(category.slug)
-      )
-      .map((category) => ({ id: category.id }));
-
-    await prisma.product.create({
-      data: {
-        name: 'Laptop Pro 15"',
-        description:
-          "Laptop profesional con pantalla de 15 pulgadas, 16GB de RAM, 512GB SSD y teclado retroiluminado.",
-        price: 125000,
-        priceFinal: 125000,
-        stock: 25,
-        images: [
-          "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?auto=format&fit=crop&w=1200&q=80",
-        ],
-        status: ProductStatus.active,
-        storeId: sellerStore.id,
-        categories: {
-          connect: productCategories,
-        },
-        taxes: {
-          create: taxes.slice(0, 2).map((tax) => ({ taxId: tax.id })),
-        },
-      },
-    });
-  }
-
-  // --- Añadir 2 productos más ---
-
-  // Producto 2: Smartwatch
-  const smartwatchExists = await prisma.product.findFirst({
-    where: { name: "Smartwatch Pro" },
-  });
-
-  if (!smartwatchExists) {
-    const smartwatchCategories = categories
-      .filter((category) =>
-        ["electronica", "deportes-y-fitness"].includes(category.slug)
-      )
-      .map((category) => ({ id: category.id }));
-
-    await prisma.product.create({
-      data: {
-        name: "Smartwatch Pro",
-        description:
-          "Reloj inteligente con GPS, monitor de ritmo cardíaco y notificaciones.",
-        price: 15000,
-        priceFinal: 15000,
-        stock: 50,
-        images: [
-          "https://images.unsplash.com/photo-1546868871-7041f2a55e12?auto=format&fit=crop&w=1200&q=80",
-        ],
-        status: ProductStatus.active,
-        storeId: sellerStore.id,
-        categories: {
-          connect: smartwatchCategories,
-        },
-        taxes: {
-          create: [{ taxId: taxes[0].id }], // IVA General
-        },
-      },
-    });
-  }
-
-  // Producto 3: Camiseta con descuento
-  const tshirtExists = await prisma.product.findFirst({
-    where: { name: "Camiseta de Algodón Orgánico" },
-  });
-
-  if (!tshirtExists) {
-    const tshirtCategories = categories
-      .filter((category) => ["moda-y-accesorios"].includes(category.slug))
-      .map((category) => ({ id: category.id }));
-
-    // Aplicar un descuento existente
-    const discountToApply = await prisma.discount.findFirst({
-      where: { name: "Liquidación de temporada" },
-    });
-
-    let finalPrice = 2500;
-    let discountId: string | undefined = undefined;
-
-    if (discountToApply) {
-      discountId = discountToApply.id;
-      if (discountToApply.type === "fixed") {
-        finalPrice = 2500 - discountToApply.value;
-      } else if (discountToApply.type === "percentage") {
-        finalPrice = 2500 - (2500 * discountToApply.value) / 100;
-      }
-    }
-
-    await prisma.product.create({
-      data: {
-        name: "Camiseta de Algodón Orgánico",
-        description:
-          "Camiseta suave y cómoda, hecha con 100% algodón orgánico.",
-        price: 2500,
-        priceFinal: finalPrice,
-        stock: 120,
-        images: [
-          "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=1200&q=80",
-        ],
-        status: ProductStatus.active,
-        storeId: sellerStore.id,
-        discountId: discountId,
-        categories: {
-          connect: tshirtCategories,
-        },
-      },
-    });
-  }
-
-  console.log("Creando reseñas de productos semilla...");
-
-  const buyerForReviews = await prisma.user.findUnique({
-    where: { email: "buyer@gmail.com" },
-    select: { id: true },
-  });
-
-  if (buyerForReviews) {
-    const productsForReviews = await prisma.product.findMany({
-      where: { name: { in: ['Laptop Pro 15"', "Smartwatch Pro"] } },
-      select: { id: true, name: true, storeId: true },
-    });
-
-    const reviewSeeds = [
-      {
-        productName: 'Laptop Pro 15"',
-        rating: 5,
-        comment:
-          "Excelente rendimiento y calidad de construcción. Ideal para trabajo y entretenimiento.",
-      },
-      {
-        productName: "Smartwatch Pro",
-        rating: 4,
-        comment:
-          "Muy práctico para el día a día. La batería podría durar un poco más, pero cumple.",
-      },
-    ];
-
-    for (const seed of reviewSeeds) {
-      const product = productsForReviews.find(
-        (item) => item.name === seed.productName
-      );
-
-      if (!product) continue;
-
-      const existingReview = await prisma.review.findFirst({
-        where: {
-          userId: buyerForReviews.id,
-          productId: product.id,
-        },
-      });
-
-      if (existingReview) continue;
-
-      await prisma.review.create({
-        data: {
-          rating: seed.rating,
-          comment: seed.comment,
-          productId: product.id,
-          storeId: product.storeId,
-          userId: buyerForReviews.id,
-        },
-      });
-    }
-  }
-
-  // --- Crear una orden para el usuario comprador ---
-  const orderExists = await prisma.order.findFirst({
-    where: {
-      user: {
-        email: "buyer@gmail.com",
-      },
-    },
-  });
-
-  const loyaltyActionsSeed = [
+  const baseProducts = [
     {
-      key: "purchase",
-      name: "Compra en la tienda",
-      description: "Otorga puntos por cada peso gastado",
-      defaultPoints: 1,
-    },
-    {
-      key: "social_follow",
-      name: "Seguimiento en redes sociales",
-      description: "Bonifica a clientes que siguen las cuentas oficiales",
-      defaultPoints: 200,
-    },
-    {
-      key: "manual_adjustment",
-      name: "Ajuste manual",
+      name: 'Laptop Pro 15"',
+      price: 125000,
+      categories: ["electronica", "hogar-y-cocina"],
       description:
-        "Permite otorgar puntos adicionales segun criterio del administrador",
-      defaultPoints: 0,
+        "Laptop profesional con pantalla de 15 pulgadas, 16GB de RAM, 512GB SSD y teclado retroiluminado.",
+      images: [
+        "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?auto=format&fit=crop&w=1200&q=80",
+      ],
+    },
+    {
+      name: "Smartwatch Pro",
+      price: 15000,
+      categories: ["electronica", "deportes-y-fitness"],
+      description:
+        "Reloj inteligente con GPS, monitor de ritmo cardíaco y notificaciones.",
+      images: [
+        "https://images.unsplash.com/photo-1546868871-7041f2a55e12?auto=format&fit=crop&w=1200&q=80",
+      ],
+    },
+    {
+      name: "Camiseta de Algodón Orgánico",
+      price: 2500,
+      discountId: discountToApply?.id,
+      categories: ["moda-y-accesorios"],
+      description: "Camiseta suave y cómoda, hecha con 100% algodón orgánico.",
+      images: [
+        "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=1200&q=80",
+      ],
     },
   ];
 
-  for (const action of loyaltyActionsSeed) {
-    await prisma.loyaltyAction.upsert({
-      where: { key: action.key },
-      update: {
-        name: action.name,
-        description: action.description,
-        defaultPoints: action.defaultPoints,
-        isActive: true,
-      },
-      create: action,
+  for (const product of baseProducts) {
+    const exists = await prisma.product.findFirst({
+      where: { name: product.name },
     });
-  }
-
-  if (!orderExists) {
-    console.log("Creando orden de prueba para el comprador...");
-    const buyerUser = await prisma.user.findUnique({
-      where: { email: "buyer@gmail.com" },
-    });
-    const smartwatch = await prisma.product.findFirst({
-      where: { name: "Smartwatch Pro" },
-      include: { discount: true },
-    });
-    const tshirt = await prisma.product.findFirst({
-      where: { name: "Camiseta de Algodón Orgánico" },
-      include: { discount: true },
-    });
-
-    if (buyerUser && smartwatch && tshirt) {
-      const orderItems = [
-        { product: smartwatch, quantity: 1 },
-        { product: tshirt, quantity: 2 },
-      ];
-
-      const orderItemSnapshots = orderItems.map((item) => {
-        const unitPrice = item.product.price ?? 0;
-        const unitPriceFinal = item.product.priceFinal ?? unitPrice;
-        const lineSubtotal = unitPrice * item.quantity;
-        const lineDiscount =
-          Math.max(unitPrice - unitPriceFinal, 0) * item.quantity;
-
-        return {
-          productId: item.product.id,
-          quantity: item.quantity,
-          unitPrice,
-          unitPriceFinal,
-          lineSubtotal,
-          lineDiscount,
-        };
-      });
-
-      const subtotal = orderItemSnapshots.reduce(
-        (acc, item) => acc + item.lineSubtotal,
-        0
-      );
-      const productDiscountTotal = orderItemSnapshots.reduce(
-        (acc, item) => acc + item.lineDiscount,
-        0
-      );
-      const discountAdjustments = new Map<
-        string,
-        { type: string; name: string; amount: number; discountId?: string }
-      >();
-      for (const snapshot of orderItemSnapshots) {
-        if (snapshot.lineDiscount > 0) {
-          const matchingProduct = orderItems.find(
-            (entry) => entry.product.id === snapshot.productId
-          );
-          const appliedDiscount = matchingProduct?.product.discount;
-          if (appliedDiscount) {
-            const key = appliedDiscount.id;
-            const current = discountAdjustments.get(key) ?? {
-              type: "discount",
-              name: appliedDiscount.name,
-              amount: 0,
-              discountId: appliedDiscount.id,
-            };
-            current.amount += snapshot.lineDiscount;
-            discountAdjustments.set(key, current);
-          }
-        }
+    if (!exists) {
+      const connectedCategories = categories
+        .filter((c) => product.categories.includes(c.slug))
+        .map((c) => ({ id: c.id }));
+      let priceFinal = product.price;
+      if (product.discountId && discountToApply) {
+        priceFinal =
+          discountToApply.type === "fixed"
+            ? product.price - discountToApply.value
+            : product.price - (product.price * discountToApply.value) / 100;
       }
 
-      // Aplicar la promoción "Promo de verano" (cupón) si existe
-      const summerPromo = await prisma.promotion.findFirst({
-        where: { name: "Promo de verano", type: PromotionType.coupon },
-      });
-
-      const promotionDiscount =
-        summerPromo?.value && summerPromo.value > 0
-          ? (subtotal * summerPromo.value) / 100
-          : 0;
-      const taxAmount = 0; // Simulado
-      const shippingAmount = 0; // Simulado
-      const totalDiscountAmount = productDiscountTotal + promotionDiscount;
-      const total = subtotal - totalDiscountAmount + taxAmount + shippingAmount;
-
-      const priceAdjustments: Array<Record<string, unknown>> = [
-        ...discountAdjustments.values(),
-      ];
-      if (promotionDiscount > 0 && summerPromo) {
-        priceAdjustments.push({
-          type: "promotion",
-          name: summerPromo.name,
-          code: summerPromo.code ?? undefined,
-          amount: promotionDiscount,
-        });
-      }
-
-      // Transacción para crear orden y generar puntos
-      await prisma.$transaction(async (tx) => {
-        // Primero, obtenemos la cuenta de lealtad del comprador
-        const loyaltyAccount = await tx.loyaltyAccount.findUnique({
-          where: { userId: buyerUser.id },
-        });
-
-        const order = await tx.order.create({
-          data: {
-            userId: buyerUser.id,
-            storeId: sellerStore.id,
-            subtotal,
-            totalDiscountAmount,
-            taxAmount,
-            shippingAmount,
-            total: total,
-            status: "completed", // Marcar como completada para el ejemplo
-            shippingAddress: {
-              street: "Calle Falsa 123",
-              city: "Springfield",
-              country: "USA",
-            },
-            shippingMethod: "Envío Estándar",
-            promotionId: summerPromo?.id,
-            promotionCodeUsed:
-              promotionDiscount > 0 && summerPromo?.code
-                ? summerPromo.code
-                : undefined,
-            priceAdjustments: priceAdjustments.length
-              ? priceAdjustments
-              : undefined,
-            items: {
-              create: orderItemSnapshots,
-            },
-          },
-        });
-
-        // Generar puntos de lealtad por la compra
-        const purchaseAction = await tx.loyaltyAction.findUnique({
-          where: { key: "purchase" },
-        });
-        const pointsPerUnit = purchaseAction?.defaultPoints ?? 1;
-        const pointsEarned = Math.floor(total * pointsPerUnit);
-
-        await tx.loyaltyTransaction.create({
-          data: {
-            accountId: loyaltyAccount!.id, // Usamos el ID correcto de la cuenta de lealtad
-            userId: buyerUser.id,
-            actionId: purchaseAction?.id,
-            points: pointsEarned,
-            referenceId: order.id,
-            referenceType: "Order",
-            description: `Puntos por orden #${order.id.substring(0, 8)}`,
-          },
-        });
-
-        await tx.loyaltyAccount.update({
-          where: { userId: buyerUser.id },
-          data: {
-            balance: { increment: pointsEarned },
-            lifetimeEarned: { increment: pointsEarned },
-          },
-        });
-      });
-    }
-  }
-
-  console.log("Creando publicaciones de blog semilla...");
-
-  const adminUser = await prisma.user.findFirst({
-    where: { role: RolesEnum.ADMIN },
-    select: { id: true },
-  });
-
-  if (adminUser) {
-    const blogPostsSeed = [
-      {
-        title: "Bienvenido a CommerceHub",
-        excerpt: "Resumen del lanzamiento y pilares del marketplace.",
-        content:
-          "CommerceHub reune vendedores y compradores en un mismo lugar." +
-          "\n\nEn este espacio compartimos noticias, lanzamientos y buenas practicas.",
-        coverImage:
-          "https://images.unsplash.com/photo-1545239351-1141bd82e8a6?auto=format&fit=crop&w=1200&q=80",
-        tags: ["novedades", "comunidad"],
-      },
-      {
-        title: "Guia rapida para nuevos vendedores",
-        excerpt:
-          "Lista de acciones para publicar productos y gestionar ordenes.",
-        content:
-          "Sigue estos pasos para preparar tu tienda y optimizar listados." +
-          "\n\n1. Completa la informacion de tu tienda." +
-          "\n2. Sube imagenes optimizadas." +
-          "\n3. Revisa tus ordenes en el panel de control.",
-        coverImage:
-          "https://images.unsplash.com/photo-1521737604893-d14cc237f11d?auto=format&fit=crop&w=1200&q=80",
-        tags: ["vendedores", "tutorial"],
-      },
-    ];
-
-    for (const post of blogPostsSeed) {
-      const slug = slugify(post.title);
-      const publishedAt = new Date();
-      await prisma.blogPost.upsert({
-        where: { slug },
-        update: {
-          title: post.title,
-          excerpt: post.excerpt,
-          content: post.content,
-          coverImage: post.coverImage ?? null,
-          status: BlogPostStatus.published,
-          tags: post.tags ?? [],
-          publishedAt,
-          authorId: adminUser.id,
-        },
-        create: {
-          title: post.title,
-          slug,
-          excerpt: post.excerpt,
-          content: post.content,
-          coverImage: post.coverImage ?? null,
-          status: BlogPostStatus.published,
-          tags: post.tags ?? [],
-          publishedAt,
-          authorId: adminUser.id,
+      await prisma.product.create({
+        data: {
+          ...product,
+          priceFinal,
+          stock: 50,
+          status: ProductStatus.active,
+          storeId: sellerStore.id,
+          categories: { connect: connectedCategories },
+          taxes: { create: taxes.slice(0, 1).map((t) => ({ taxId: t.id })) },
         },
       });
     }
   }
 
-  console.log("Seed data listo");
+  console.log("✅ Seed completado sin duplicados.");
 }
 
 main()
-  .catch((error) => {
-    console.error("Seed falló", error);
+  .catch((err) => {
+    console.error("❌ Error en seed:", err);
     process.exit(1);
   })
   .finally(async () => {

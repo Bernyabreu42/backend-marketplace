@@ -9,7 +9,6 @@ export const apiKeyGuard = (
   next: NextFunction
 ) => {
   const authHeader = req.headers.authorization;
-  // console.log({ authHeader });
 
   if (!authHeader || !authHeader.startsWith("Basic ")) {
     res.status(401).json(ApiResponse.error({ message: "No autenticado" }));
