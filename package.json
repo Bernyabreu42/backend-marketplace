@@ -5,14 +5,14 @@
   "scripts": {
     "dev": "bun run  --watch src/server.ts",
     "test": "bun test",
-    "start": "bunx prisma migrate deploy && bunx prisma db seed && bun run src/server.ts",
-    "db:dev": "bunx prisma migrate dev",
-    "db:reset": "bunx prisma migrate reset --force",
-    "db:seed": "bunx prisma db seed",
-    "db:deploy": "bunx prisma migrate deploy",
-    "db:push": "bunx prisma db push",
-    "db:generate": "bunx prisma generate",
-    "db:status": "bunx prisma migrate status",
+    "start": "bun run prisma migrate deploy && bun run prisma db seed && bun run src/server.ts",
+    "db:dev": "bun run prisma migrate dev",
+    "db:reset": "bun run prisma migrate reset --force",
+    "db:seed": "bun run prisma db seed",
+    "db:deploy": "bun run prisma migrate deploy",
+    "db:push": "bun run prisma db push",
+    "db:generate": "bun run prisma generate",
+    "db:status": "bun run prisma migrate status",
     "openapi:build": "bun run scripts/merge-openapi.ts"
   },
   "prisma": {
