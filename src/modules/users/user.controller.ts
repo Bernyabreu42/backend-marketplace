@@ -1,5 +1,7 @@
 import type { Request, Response } from "express";
 import prisma from "../../database/prisma";
+import { accessTokenCookie, refreshTokenCookie } from "../../config/cookies";
+import { env } from "../../config/env";
 import { ApiResponse } from "../../core/responses/ApiResponse";
 import bcrypt from "bcrypt";
 
@@ -13,27 +15,12 @@ import {
   verifyAccessToken,
 } from "../../utils/jwt";
 import { userPublicSelect } from "./SchemaPublic";
-import { bodySchema, buildDisplayName, validateCreateUser } from "./validated";
-import { IdSchema } from "../products/validated";
+import { bodySchema, buildDisplayName, validateCreateUser } from "./validator";
+import { IdSchema } from "../products/validator";
 import { safeDelete } from "../../utils";
-import { UserStatus } from "@prisma/client";
+import { StatusStore, UserStatus } from "@prisma/client";
+import { RolesEnum } from "../../core/enums";
 import { mailService } from "../../core/services/mailService";
-
-const isProd = process.env.NODE_ENV === "production";
-const accessCookie = {
-  httpOnly: true,
-  secure: isProd,
-  sameSite: isProd ? "none" : "lax",
-  maxAge: 15 * 60 * 1000, // 15m
-  path: "/",
-} as const;
-const refreshCookie = {
-  httpOnly: true,
-  secure: isProd,
-  sameSite: isProd ? "none" : "lax",
-  maxAge: 7 * 24 * 60 * 60 * 1000, // 7d
-  path: "/",
-} as const;
 
 export const getUsers = async (req: Request, res: Response) => {
   try {
@@ -151,7 +138,7 @@ export const createUser = async (req: Request, res: Response) => {
       template: "verification",
       data: {
         name: user.username || emailParse.split("@")[0],
-        verificationUrl: `${process.env.CLIENT_URL}/auth/verified-account?token=${verifyToken}`,
+        verificationUrl: `${env.CLIENT_URL}/auth/verified-account?token=${verifyToken}`,
       },
     });
 
@@ -183,15 +170,19 @@ export const deleteUser = async (req: Request, res: Response) => {
     return;
   }
 
-  // (opcional) evita auto-borrarte
-  const requesterId = (req as any).user?.id; // si tu middleware setea req.user
-  if (requesterId && requesterId === id) {
-    res
-      .status(400)
-      .json(ApiResponse.error({ message: "No puedes eliminarte a ti mismo" }));
+  const requester = (req as any).user;
+  const requesterId = requester?.id ?? null;
+  const requesterRole = requester?.role as RolesEnum | undefined;
+  const isSelfDelete = requesterId === id;
+
+  if (!isSelfDelete && requesterRole !== RolesEnum.ADMIN) {
+    res.status(403).json(
+      ApiResponse.error({
+        message: "No tienes permisos para eliminar este usuario",
+      })
+    );
     return;
   }
-
   try {
     const user = await prisma.user.findUnique({ where: { id } });
     if (!user) {
@@ -201,9 +192,9 @@ export const deleteUser = async (req: Request, res: Response) => {
       return;
     }
     // (opcional) evita borrar al último admin
-    if (user.role === "admin") {
+    if (user.role === RolesEnum.ADMIN) {
       const admins = await prisma.user.count({
-        where: { role: "admin", status: "active" },
+        where: { role: RolesEnum.ADMIN, status: "active" },
       });
 
       if (admins <= 1) {
@@ -223,7 +214,7 @@ export const deleteUser = async (req: Request, res: Response) => {
       prisma.user.update({
         where: { id },
         data: {
-          status: "disabled",
+          status: UserStatus.disabled,
           isOnline: false,
           emailVerified: false,
           isDeleted: true,
@@ -237,6 +228,14 @@ export const deleteUser = async (req: Request, res: Response) => {
           displayName: `Deleted User`,
           profileImage: null,
           lastSeenAt: now,
+        },
+      }),
+      prisma.store.updateMany({
+        where: { ownerId: id },
+        data: {
+          status: StatusStore.pending,
+          isFeatured: false,
+          featuredUntil: null,
         },
       }),
       prisma.session.updateMany({
@@ -481,8 +480,8 @@ export const changePassword = async (req: Request, res: Response) => {
     const newAccessToken = generateAccessToken({ id: userId });
 
     res
-      .cookie("accessToken", newAccessToken, accessCookie)
-      .cookie("refreshToken", newRefreshToken, refreshCookie)
+      .cookie("accessToken", newAccessToken, accessTokenCookie)
+      .cookie("refreshToken", newRefreshToken, refreshTokenCookie)
       .json(ApiResponse.success({ message: "Contraseña actualizada" }));
   } catch (err: any) {
     // Diferenciar errores JWT

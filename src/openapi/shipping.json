@@ -1,0 +1,181 @@
+{
+  "paths": {
+    "/api/shipping/store/{storeId}": {
+      "get": {
+        "tags": ["Shipping"],
+        "summary": "Métodos de envío por tienda",
+        "parameters": [
+          {
+            "name": "storeId",
+            "in": "path",
+            "required": true,
+            "schema": {"type": "string", "format": "uuid"}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Listado de métodos de envío",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/ShippingMethodListResponse"}
+              }
+            }
+          },
+          "400": {"description": "ID inválido"}
+        }
+      }
+    },
+    "/api/shipping": {
+      "post": {
+        "tags": ["Shipping"],
+        "summary": "Crear método de envío",
+        "security": [
+          {"basicAuth": [], "accessCookie": []}
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {"$ref": "#/components/schemas/ShippingMethodCreateRequest"}
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Creado",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/ShippingMethodResponse"}
+              }
+            }
+          },
+          "400": {"description": "Datos inválidos"},
+          "403": {"description": "No autorizado"}
+        }
+      }
+    },
+    "/api/shipping/{id}": {
+      "patch": {
+        "tags": ["Shipping"],
+        "summary": "Actualizar método de envío",
+        "security": [
+          {"basicAuth": [], "accessCookie": []}
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {"type": "string", "format": "uuid"}
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {"$ref": "#/components/schemas/ShippingMethodUpdateRequest"}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Actualizado",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/ShippingMethodResponse"}
+              }
+            }
+          },
+          "400": {"description": "Datos inválidos"},
+          "403": {"description": "No autorizado"},
+          "404": {"description": "Método de envío no encontrado"}
+        }
+      },
+      "delete": {
+        "tags": ["Shipping"],
+        "summary": "Eliminar método de envío",
+        "security": [
+          {"basicAuth": [], "accessCookie": []}
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {"type": "string", "format": "uuid"}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Eliminado",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/MessageResponse"}
+              }
+            }
+          },
+          "403": {"description": "No autorizado"},
+          "404": {"description": "Método de envío no encontrado"}
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ShippingMethod": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string", "format": "uuid"},
+          "name": {"type": "string"},
+          "description": {"type": ["string", "null"]},
+          "cost": {"type": "number", "format": "float"},
+          "status": {"type": "string", "enum": ["active", "inactive"]},
+          "storeId": {"type": "string", "format": "uuid"},
+          "isDeleted": {"type": "boolean"},
+          "deletedAt": {"type": ["string", "null"], "format": "date-time"},
+          "deletedBy": {"type": ["string", "null"]},
+          "createdAt": {"type": "string", "format": "date-time"},
+          "updatedAt": {"type": "string", "format": "date-time"}
+        }
+      },
+      "ShippingMethodCreateRequest": {
+        "type": "object",
+        "required": ["name", "cost"],
+        "properties": {
+          "name": {"type": "string"},
+          "description": {"type": ["string", "null"]},
+          "cost": {"type": "number", "format": "float", "minimum": 0},
+          "status": {"type": "string", "enum": ["active", "inactive"], "default": "active"}
+        }
+      },
+      "ShippingMethodUpdateRequest": {
+        "type": "object",
+        "properties": {
+          "name": {"type": "string"},
+          "description": {"type": ["string", "null"]},
+          "cost": {"type": "number", "format": "float", "minimum": 0},
+          "status": {"type": "string", "enum": ["active", "inactive"]}
+        }
+      },
+      "ShippingMethodResponse": {
+        "type": "object",
+        "properties": {
+          "success": {"type": "boolean", "example": true},
+          "message": {"type": "string", "example": "OK"},
+          "data": {"$ref": "#/components/schemas/ShippingMethod"}
+        }
+      },
+      "ShippingMethodListResponse": {
+        "type": "object",
+        "properties": {
+          "success": {"type": "boolean", "example": true},
+          "message": {"type": "string", "example": "OK"},
+          "data": {
+            "type": "array",
+            "items": {"$ref": "#/components/schemas/ShippingMethod"}
+          }
+        }
+      }
+    }
+  }
+}

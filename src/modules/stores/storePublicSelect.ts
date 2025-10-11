@@ -14,6 +14,8 @@ export const storePublicSelect = {
   twitter: true,
   youtube: true,
   status: true,
+  isFeatured: true,
+  featuredUntil: true,
   keywords: true,
   metaTitle: true,
   metaDesc: true,
@@ -41,3 +43,4 @@ export const ownerPublicSelect = {
   createdAt: true,
   updatedAt: true,
 } as const;
+

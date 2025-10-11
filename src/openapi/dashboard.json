@@ -1,0 +1,246 @@
+{
+  "tags": [
+    {
+      "name": "Dashboard",
+      "description": "Metricas agregadas para administracion"
+    }
+  ],
+  "paths": {
+    "/api/dashboard/overview": {
+      "get": {
+        "tags": ["Dashboard"],
+        "summary": "Resumen de ventas y usuarios",
+        "security": [{"basicAuth": [], "accessCookie": []}],
+        "parameters": [
+          {"name": "rangeStart", "in": "query", "schema": {"type": "string", "format": "date"}},
+          {"name": "rangeEnd", "in": "query", "schema": {"type": "string", "format": "date"}},
+          {"name": "days", "in": "query", "schema": {"type": "integer", "minimum": 1, "maximum": 180}}
+        ],
+        "responses": {
+          "200": {
+            "description": "Resumen",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/DashboardOverviewResponse"}
+              }
+            }
+          },
+          "400": {"description": "Parametros invalidos"},
+          "401": {"description": "No autenticado"},
+          "403": {"description": "No autorizado"}
+        }
+      }
+    },
+    "/api/dashboard/sales": {
+      "get": {
+        "tags": ["Dashboard"],
+        "summary": "Serie temporal de ventas",
+        "security": [{"basicAuth": [], "accessCookie": []}],
+        "parameters": [
+          {"name": "rangeStart", "in": "query", "schema": {"type": "string", "format": "date"}},
+          {"name": "rangeEnd", "in": "query", "schema": {"type": "string", "format": "date"}},
+          {"name": "days", "in": "query", "schema": {"type": "integer", "minimum": 1, "maximum": 180}}
+        ],
+        "responses": {
+          "200": {
+            "description": "Serie temporal",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/DashboardSalesSeriesResponse"}
+              }
+            }
+          },
+          "400": {"description": "Parametros invalidos"},
+          "403": {"description": "No autorizado"}
+        }
+      }
+    },
+    "/api/dashboard/orders/status": {
+      "get": {
+        "tags": ["Dashboard"],
+        "summary": "Conteo de ordenes por estado",
+        "security": [{"basicAuth": [], "accessCookie": []}],
+        "parameters": [
+          {"name": "rangeStart", "in": "query", "schema": {"type": "string", "format": "date"}},
+          {"name": "rangeEnd", "in": "query", "schema": {"type": "string", "format": "date"}},
+          {"name": "days", "in": "query", "schema": {"type": "integer", "minimum": 1, "maximum": 180}}
+        ],
+        "responses": {
+          "200": {
+            "description": "Estados",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/DashboardOrdersStatusResponse"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/dashboard/loyalty": {
+      "get": {
+        "tags": ["Dashboard"],
+        "summary": "Metricas de puntos de lealtad",
+        "security": [{"basicAuth": [], "accessCookie": []}],
+        "parameters": [
+          {"name": "rangeStart", "in": "query", "schema": {"type": "string", "format": "date"}},
+          {"name": "rangeEnd", "in": "query", "schema": {"type": "string", "format": "date"}},
+          {"name": "days", "in": "query", "schema": {"type": "integer", "minimum": 1, "maximum": 180}}
+        ],
+        "responses": {
+          "200": {
+            "description": "Resumen de puntos",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/DashboardLoyaltyResponse"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/dashboard/top-products": {
+      "get": {
+        "tags": ["Dashboard"],
+        "summary": "Top productos por ingreso",
+        "security": [{"basicAuth": [], "accessCookie": []}],
+        "parameters": [
+          {"name": "rangeStart", "in": "query", "schema": {"type": "string", "format": "date"}},
+          {"name": "rangeEnd", "in": "query", "schema": {"type": "string", "format": "date"}},
+          {"name": "days", "in": "query", "schema": {"type": "integer", "minimum": 1, "maximum": 180}},
+          {"name": "limit", "in": "query", "schema": {"type": "integer", "minimum": 1, "maximum": 20}}
+        ],
+        "responses": {
+          "200": {
+            "description": "Productos",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/DashboardTopProductsResponse"}
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "DashboardRange": {
+        "type": "object",
+        "properties": {
+          "start": {"type": "string", "format": "date-time"},
+          "end": {"type": "string", "format": "date-time"}
+        }
+      },
+      "DashboardOverviewResponse": {
+        "type": "object",
+        "properties": {
+          "success": {"type": "boolean"},
+          "message": {"type": "string"},
+          "data": {
+            "type": "object",
+            "properties": {
+              "range": {"$ref": "#/components/schemas/DashboardRange"},
+              "totalSales": {"type": "number"},
+              "totalSalesPrevious": {"type": "number"},
+              "deltaPercent": {"type": "number", "nullable": true},
+              "totalOrders": {"type": "integer"},
+              "totalOrdersPrevious": {"type": "integer"},
+              "ordersDeltaPercent": {"type": "number", "nullable": true},
+              "newCustomers": {"type": "integer"},
+              "newCustomersPrevious": {"type": "integer"},
+              "customersDeltaPercent": {"type": "number", "nullable": true}
+            }
+          }
+        }
+      },
+      "DashboardSalesSeriesResponse": {
+        "type": "object",
+        "properties": {
+          "success": {"type": "boolean"},
+          "message": {"type": "string"},
+          "data": {
+            "type": "object",
+            "properties": {
+              "range": {"$ref": "#/components/schemas/DashboardRange"},
+              "points": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "date": {"type": "string", "format": "date"},
+                    "value": {"type": "number"}
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "DashboardOrdersStatusResponse": {
+        "type": "object",
+        "properties": {
+          "success": {"type": "boolean"},
+          "message": {"type": "string"},
+          "data": {
+            "type": "object",
+            "properties": {
+              "range": {"$ref": "#/components/schemas/DashboardRange"},
+              "statuses": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "status": {"type": "string"},
+                    "count": {"type": "integer"}
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "DashboardLoyaltyResponse": {
+        "type": "object",
+        "properties": {
+          "success": {"type": "boolean"},
+          "message": {"type": "string"},
+          "data": {
+            "type": "object",
+            "properties": {
+              "range": {"$ref": "#/components/schemas/DashboardRange"},
+              "pointsIssued": {"type": "number"},
+              "pointsRedeemed": {"type": "number"},
+              "outstandingBalance": {"type": "number"}
+            }
+          }
+        }
+      },
+      "DashboardTopProductsResponse": {
+        "type": "object",
+        "properties": {
+          "success": {"type": "boolean"},
+          "message": {"type": "string"},
+          "data": {
+            "type": "object",
+            "properties": {
+              "range": {"$ref": "#/components/schemas/DashboardRange"},
+              "products": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "productId": {"type": "string"},
+                    "name": {"type": "string"},
+                    "revenue": {"type": "number"},
+                    "quantity": {"type": "number"}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -21,6 +21,11 @@ export const SEARCHABLE: Record<string, SearchConfig> = {
   store: {
     contains: ["name"],
   },
+  review: {
+    contains: ["comment"],
+    number: ["rating"],
+    exact: ["productId", "storeId", "userId"],
+  },
   // user: { contains: ["name","email"], exact:["role"], boolean:["active"] }
 };
 
@@ -31,6 +36,39 @@ function parseValue(key: string, raw: any, cfg: SearchConfig) {
   return raw;
 }
 
+const PRODUCT_STATUS_ALLOWED = new Set([
+  "active",
+  "inactive",
+  "draft",
+  "out_of_stock",
+]);
+
+const PRODUCT_STATUS_ALIASES: Record<string, string> = {
+  published: "active",
+  unpublished: "inactive",
+};
+
+const normalizeProductStatusValue = (
+  value: unknown
+): string | string[] | undefined => {
+  const mapValue = (val: unknown): string | undefined => {
+    if (typeof val !== "string") return undefined;
+    const normalized = val.trim().toLowerCase();
+    if (!normalized) return undefined;
+    if (PRODUCT_STATUS_ALLOWED.has(normalized)) return normalized;
+    return PRODUCT_STATUS_ALIASES[normalized];
+  };
+
+  if (Array.isArray(value)) {
+    const normalized = value
+      .map(mapValue)
+      .filter((entry): entry is string => Boolean(entry));
+    return normalized.length > 0 ? normalized : undefined;
+  }
+
+  return mapValue(value);
+};
+
 // Soporta: ?q=texto, ?name=..., ?status=..., ?price[gt]=100, ?status[in]=A,B
 export function buildWhere(modelName: keyof typeof SEARCHABLE, query: any) {
   const cfg = SEARCHABLE[modelName] || {};
@@ -39,6 +77,32 @@ export function buildWhere(modelName: keyof typeof SEARCHABLE, query: any) {
   const where: any = {};
   const OR: any[] = [];
   const AND: any[] = [];
+
+  const applyProductCategoryFilter = (value: unknown, operator?: string) => {
+    if (modelName !== "product") return;
+
+    const values = (Array.isArray(value)
+      ? value
+      : String(value)
+          .split(",")
+          .map((entry) => entry.trim()))
+      .filter((entry) => entry.length > 0);
+
+    if (values.length === 0) return;
+
+    if (operator === "neq") {
+      AND.push({ categories: { none: { id: { in: values } } } });
+      return;
+    }
+
+    if (values.length === 1 && operator !== "in") {
+      AND.push({ categories: { some: { id: values[0] } } });
+      return;
+    }
+
+    AND.push({ categories: { some: { id: { in: values } } } });
+  };
+
 
   // búsqueda global
   if (query?.q && cfg.contains?.length) {
@@ -55,6 +119,10 @@ export function buildWhere(modelName: keyof typeof SEARCHABLE, query: any) {
     const m = rawKey.match(/^(.+)\[(.+)\]$/);
     if (m) {
       const [, key, op] = m;
+      if (modelName === "product" && key === "categoryId") {
+        applyProductCategoryFilter(rawVal, op);
+        continue;
+      }
       const allowed = [
         ...(cfg.contains || []),
         ...(cfg.exact || []),
@@ -63,22 +131,86 @@ export function buildWhere(modelName: keyof typeof SEARCHABLE, query: any) {
       ];
       if (!allowed.includes(key)) continue;
 
-      const v = parseValue(key, rawVal, cfg);
+      const parsedValue = parseValue(key, rawVal, cfg);
       if (op === "in") {
-        const arr = Array.isArray(v) ? v : String(v).split(",");
-        AND.push({ [key]: { in: arr.map((x) => parseValue(key, x, cfg)) } });
+        const arr = Array.isArray(parsedValue)
+          ? parsedValue
+          : String(parsedValue)
+              .split(",")
+              .map((entry) => entry.trim())
+              .filter((entry) => entry.length > 0);
+
+        let valuesForFilter: any;
+        if (modelName === "product" && key === "status") {
+          valuesForFilter = normalizeProductStatusValue(arr);
+        } else {
+          valuesForFilter = arr.map((x) => parseValue(key, x, cfg));
+        }
+
+        if (
+          valuesForFilter === undefined ||
+          (Array.isArray(valuesForFilter) && valuesForFilter.length === 0)
+        ) {
+          continue;
+        }
+
+        const valuesArray = Array.isArray(valuesForFilter)
+          ? valuesForFilter
+          : [valuesForFilter];
+
+        AND.push({ [key]: { in: valuesArray } });
       } else if (["gt", "gte", "lt", "lte"].includes(op)) {
-        AND.push({ [key]: { [op]: parseValue(key, v, cfg) } });
+        AND.push({ [key]: { [op]: parsedValue } });
       } else if (op === "neq") {
-        AND.push({ [key]: { not: parseValue(key, v, cfg) } });
+        let valueForFilter: any = parsedValue;
+
+        if (modelName === "product" && key === "status") {
+          valueForFilter = normalizeProductStatusValue(parsedValue);
+          if (
+            valueForFilter === undefined ||
+            (Array.isArray(valueForFilter) && valueForFilter.length === 0)
+          ) {
+            continue;
+          }
+
+          if (Array.isArray(valueForFilter)) {
+            if (valueForFilter.length === 1) {
+              AND.push({ [key]: { not: valueForFilter[0] } });
+            } else {
+              AND.push({ [key]: { notIn: valueForFilter } });
+            }
+            continue;
+          }
+        }
+
+        AND.push({ [key]: { not: valueForFilter } });
       }
       continue;
     }
 
     // sin operador
+    if (modelName === "product" && rawKey === "categoryId") {
+      applyProductCategoryFilter(rawVal);
+      continue;
+    }
     if (cfg.exact?.includes(rawKey)) {
-      const v = parseValue(rawKey, rawVal, cfg);
-      AND.push(Array.isArray(v) ? { [rawKey]: { in: v } } : { [rawKey]: v });
+      let valueForFilter: any = parseValue(rawKey, rawVal, cfg);
+
+      if (modelName === "product" && rawKey === "status") {
+        valueForFilter = normalizeProductStatusValue(valueForFilter);
+        if (
+          valueForFilter === undefined ||
+          (Array.isArray(valueForFilter) && valueForFilter.length === 0)
+        ) {
+          continue;
+        }
+      }
+
+      AND.push(
+        Array.isArray(valueForFilter)
+          ? { [rawKey]: { in: valueForFilter } }
+          : { [rawKey]: valueForFilter }
+      );
     } else if (cfg.contains?.includes(rawKey)) {
       AND.push({ [rawKey]: { contains: String(rawVal), mode: "insensitive" } });
     }

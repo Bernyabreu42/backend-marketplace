@@ -1,0 +1,197 @@
+{
+  "paths": {
+    "/api/promotions": {
+      "get": {
+        "tags": ["Promotions"],
+        "summary": "Listar promociones",
+        "parameters": [
+          {"name": "page", "in": "query", "schema": {"type": "integer", "minimum": 1, "default": 1}},
+          {"name": "limit", "in": "query", "schema": {"type": "integer", "minimum": 1, "maximum": 100, "default": 10}},
+          {"name": "type", "in": "query", "schema": {"type": "string", "enum": ["automatic", "coupon"]}},
+          {"name": "status", "in": "query", "schema": {"type": "string", "enum": ["active", "inactive", "deleted"]}}
+        ],
+        "responses": {
+          "200": {
+            "description": "Listado paginado",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/PromotionListResponse"}}}
+          }
+        }
+      },
+      "post": {
+        "tags": ["Promotions"],
+        "summary": "Crear promoción",
+        "security": [{"basicAuth": [], "accessCookie": []}],
+        "requestBody": {
+          "required": true,
+          "content": {"application/json": {"schema": {"$ref": "#/components/schemas/PromotionCreateRequest"}}}
+        },
+        "responses": {
+          "201": {"description": "Creada", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/PromotionResponse"}}}},
+          "400": {"description": "Datos inválidos"},
+          "403": {"description": "No autorizado"}
+        }
+      }
+    },
+    "/api/promotions/store/{storeId}": {
+      "get": {
+        "tags": ["Promotions"],
+        "summary": "Promociones por tienda",
+        "security": [{"basicAuth": [], "accessCookie": []}],
+        "parameters": [
+          {"name": "storeId", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}},
+          {"name": "page", "in": "query", "schema": {"type": "integer", "minimum": 1, "default": 1}},
+          {"name": "limit", "in": "query", "schema": {"type": "integer", "minimum": 1, "maximum": 100, "default": 10}}
+        ],
+        "responses": {
+          "200": {"description": "Listado paginado", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/PromotionListResponse"}}}},
+          "400": {"description": "ID inválido"}
+        }
+      }
+    },
+    "/api/promotions/{id}": {
+      "get": {
+        "tags": ["Promotions"],
+        "summary": "Detalle de promoción",
+        "parameters": [
+          {"name": "id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}}
+        ],
+        "responses": {
+          "200": {"description": "Detalle", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/PromotionResponse"}}}},
+          "400": {"description": "ID inválido"},
+          "404": {"description": "Promoción no encontrada"}
+        }
+      },
+      "patch": {
+        "tags": ["Promotions"],
+        "summary": "Actualizar promoción",
+        "security": [{"basicAuth": [], "accessCookie": []}],
+        "parameters": [
+          {"name": "id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}}
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {"application/json": {"schema": {"$ref": "#/components/schemas/PromotionUpdateRequest"}}}
+        },
+        "responses": {
+          "200": {"description": "Actualizada", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/PromotionResponse"}}}},
+          "400": {"description": "Datos inválidos"},
+          "403": {"description": "No autorizado"},
+          "404": {"description": "Promoción no encontrada"}
+        }
+      },
+      "delete": {
+        "tags": ["Promotions"],
+        "summary": "Eliminar promoción",
+        "security": [{"basicAuth": [], "accessCookie": []}],
+        "parameters": [
+          {"name": "id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}}
+        ],
+        "responses": {
+          "200": {"description": "Eliminada", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/MessageResponse"}}}},
+          "403": {"description": "No autorizado"},
+          "404": {"description": "Promoción no encontrada"}
+        }
+      }
+    },
+    "/api/promotions/{id}/restore": {
+      "patch": {
+        "tags": ["Promotions"],
+        "summary": "Restaurar promoción",
+        "security": [{"basicAuth": [], "accessCookie": []}],
+        "parameters": [
+          {"name": "id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}}
+        ],
+        "responses": {
+          "200": {"description": "Restaurada", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/PromotionResponse"}}}},
+          "404": {"description": "Promoción no encontrada"}
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Promotion": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string", "format": "uuid"},
+          "name": {"type": "string"},
+          "description": {"type": ["string", "null"]},
+          "type": {"type": "string", "enum": ["automatic", "coupon"]},
+          "value": {"type": ["number", "null"], "format": "float"},
+          "code": {"type": ["string", "null"]},
+          "startsAt": {"type": ["string", "null"], "format": "date-time"},
+          "endsAt": {"type": ["string", "null"], "format": "date-time"},
+          "status": {"type": "string", "enum": ["active", "inactive", "deleted"]},
+          "storeId": {"type": "string", "format": "uuid"},
+          "createdAt": {"type": "string", "format": "date-time"},
+          "updatedAt": {"type": "string", "format": "date-time"}
+        }
+      },
+      "PromotionCreateRequest": {
+        "type": "object",
+        "required": ["name", "type"],
+        "properties": {
+          "name": {"type": "string"},
+          "description": {"type": "string"},
+          "type": {"type": "string", "enum": ["automatic", "coupon"]},
+          "value": {"type": "number", "format": "float"},
+          "code": {"type": "string"},
+          "startsAt": {"type": "string", "format": "date-time"},
+          "endsAt": {"type": "string", "format": "date-time"},
+          "status": {"type": "string", "enum": ["active", "inactive", "deleted"], "default": "active"}
+        }
+      },
+      "PromotionUpdateRequest": {
+        "type": "object",
+        "properties": {
+          "name": {"type": "string"},
+          "description": {"type": "string"},
+          "type": {"type": "string", "enum": ["automatic", "coupon"]},
+          "value": {"type": "number", "format": "float"},
+          "code": {"type": "string"},
+          "startsAt": {"type": "string", "format": "date-time"},
+          "endsAt": {"type": "string", "format": "date-time"},
+          "status": {"type": "string", "enum": ["active", "inactive", "deleted"]}
+        }
+      },
+      "PromotionListResponse": {
+        "type": "object",
+        "properties": {
+          "success": {"type": "boolean", "example": true},
+          "message": {"type": "string", "example": "OK"},
+          "data": {
+            "type": "array",
+            "items": {"$ref": "#/components/schemas/Promotion"}
+          },
+          "pagination": {"$ref": "#/components/schemas/PaginationMeta"}
+        }
+      },
+      "PromotionResponse": {
+        "type": "object",
+        "properties": {
+          "success": {"type": "boolean", "example": true},
+          "message": {"type": "string", "example": "OK"},
+          "data": {"$ref": "#/components/schemas/Promotion"}
+        }
+      },
+      "PaginationMeta": {
+        "type": "object",
+        "properties": {
+          "page": {"type": "integer", "example": 1},
+          "limit": {"type": "integer", "example": 10},
+          "total": {"type": "integer", "example": 10},
+          "totalPages": {"type": "integer", "example": 1},
+          "next": {"type": "boolean", "example": false},
+          "prev": {"type": "boolean", "example": false}
+        }
+      },
+      "MessageResponse": {
+        "type": "object",
+        "properties": {
+          "success": {"type": "boolean", "example": true},
+          "message": {"type": "string", "example": "Promoción eliminada"}
+        }
+      }
+    }
+  }
+}

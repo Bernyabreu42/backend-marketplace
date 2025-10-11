@@ -1,39 +1,39 @@
 import type { Request, Response } from "express";
-import prisma from "../../database/prisma";
-import { ApiResponse } from "../../core/responses/ApiResponse";
-import { paginate } from "../../utils/pagination";
-import { ApiPaginatedResponse } from "../../core/responses/ApiPaginatedResponse";
-import { ValidatedTaxes } from "./validated";
-import { IdSchema } from "../products/validated";
 
-// Obtener todos los taxes (paginado)
+import { ApiResponse } from "../../core/responses/ApiResponse";
+import { ApiPaginatedResponse } from "../../core/responses/ApiPaginatedResponse";
+import prisma from "../../database/prisma";
+import { paginate } from "../../utils/pagination";
+import { stripUndef } from "../../utils";
+import { IdSchema } from "../products/validator";
+import {
+  taxIdSchema,
+  validateTax,
+  validateTaxUpdate,
+} from "./validator";
+
 export const getAllTaxes = async (req: Request, res: Response) => {
   try {
     const result = await paginate({
       model: prisma.tax,
       query: req.query,
-      include: { productTax: true },
-      // where: { isActive: true, isDeleted: false },
+      where: { isDeleted: false },
+      orderBy: { createdAt: "desc" },
     });
+
     res.json(ApiPaginatedResponse.success(result));
   } catch (error) {
     res.status(500).json(
-      ApiResponse.error({
-        message: "Error al obtener impuestos",
-        error,
-      })
+      ApiResponse.error({ message: "Error al obtener impuestos", error })
     );
   }
 };
 
-// Obtener todos los taxes por tienda
 export const getTaxesByStore = async (req: Request, res: Response) => {
-  const { storeId } = req.params;
+  const idCheck = IdSchema.safeParse(req.params.storeId);
 
-  const parsed = IdSchema.safeParse(storeId);
-
-  if (!parsed.success) {
-    res.status(400).json(ApiResponse.error({ message: "ID inválido" }));
+  if (!idCheck.success) {
+    res.status(400).json(ApiResponse.error({ message: "ID invalido" }));
     return;
   }
 
@@ -41,199 +41,136 @@ export const getTaxesByStore = async (req: Request, res: Response) => {
     const result = await paginate({
       model: prisma.tax,
       query: req.query,
-      where: { storeId },
+      where: { storeId: idCheck.data, isDeleted: false },
+      orderBy: { createdAt: "desc" },
     });
 
     res.json(ApiPaginatedResponse.success(result));
   } catch (error) {
     res.status(500).json(
-      ApiResponse.error({
-        message: "Error al obtener impuestos de la tienda",
-        error,
-      })
+      ApiResponse.error({ message: "Error al obtener impuestos", error })
     );
   }
 };
 
-// Obtener un tax por ID
 export const getTaxById = async (req: Request, res: Response) => {
-  const { id } = req.params;
+  const idCheck = taxIdSchema.safeParse(req.params.id);
+
+  if (!idCheck.success) {
+    res.status(400).json(ApiResponse.error({ message: "ID invalido" }));
+    return;
+  }
+
   try {
     const tax = await prisma.tax.findUnique({
-      where: { id },
+      where: { id: idCheck.data, isDeleted: false },
     });
 
     if (!tax) {
-      res.status(404).json(
-        ApiResponse.error({
-          message: "Impuesto no encontrado",
-        })
-      );
+      res
+        .status(404)
+        .json(ApiResponse.error({ message: "Impuesto no encontrado" }));
       return;
     }
 
-    res.json(
-      ApiResponse.success({ message: "Impuesto encontrado", data: tax })
-    );
+    res.json(ApiResponse.success({ data: tax }));
   } catch (error) {
     res.status(500).json(
-      ApiResponse.error({
-        message: "Error al obtener el impuesto",
-        error,
-      })
+      ApiResponse.error({ message: "Error al obtener el impuesto", error })
     );
   }
 };
 
-// Crear un tax
 export const createTax = async (req: Request, res: Response) => {
-  const parsed = ValidatedTaxes.safeParse(req.body);
+  const parsed = validateTax(req.body);
 
   if (!parsed.success) {
     res.status(400).json(
       ApiResponse.error({
-        message: "Datos inválidos",
+        message: "Datos invalidos",
         error: parsed.error.flatten(),
       })
     );
     return;
   }
 
-  const { name, type, rate, description } = parsed.data;
+  const storeId = req.user?.store?.id;
+
+  if (!storeId) {
+    res
+      .status(403)
+      .json(ApiResponse.error({ message: "No se encontro la tienda del usuario" }));
+    return;
+  }
 
   try {
-    const storeExists = await prisma.store.findUnique({
-      where: { id: req.user.store?.id },
-    });
+    const store = await prisma.store.findUnique({ where: { id: storeId } });
 
-    if (!storeExists) {
-      res.status(404).json(
-        ApiResponse.error({
-          message: "La tienda no existe",
-        })
-      );
+    if (!store || store.ownerId !== req.user?.id) {
+      res
+        .status(403)
+        .json(
+          ApiResponse.error({
+            message: "No tienes permiso para crear impuestos en esta tienda",
+          })
+        );
       return;
     }
 
-    if (storeExists.ownerId !== req.user.id) {
-      res.status(403).json(
-        ApiResponse.error({
-          message: "No tienes permiso para crear impuestos en esta tienda",
-        })
-      );
-      return;
-    }
-
-    const newTax = await prisma.tax.create({
+    const tax = await prisma.tax.create({
       data: {
-        name,
-        type,
-        rate,
-        description,
-        status: "active", // or the appropriate default value for your model
-        store: {
-          connect: { id: req.user.store?.id },
-        },
+        name: parsed.data.name,
+        type: parsed.data.type,
+        rate: parsed.data.rate,
+        description: parsed.data.description,
+        status: parsed.data.status,
+        storeId: storeId,
       },
     });
 
-    res.status(201).json(
+    res.json(
       ApiResponse.success({
-        message: "Impuesto creado exitosamente",
-        data: newTax,
+        message: "Impuesto creado correctamente",
+        data: tax,
       })
     );
-    return;
   } catch (error) {
     res.status(500).json(
-      ApiResponse.error({
-        message: "Error al crear el impuesto",
-        error: error instanceof Error ? error.message : String(error),
-      })
+      ApiResponse.error({ message: "Error al crear el impuesto", error })
     );
-    return;
   }
 };
 
-// Actualizar un tax
 export const updateTax = async (req: Request, res: Response) => {
-  const { id } = req.params;
+  const idCheck = taxIdSchema.safeParse(req.params.id);
 
-  // Use the underlying schema with .partial() for updates
-  const parsed = ValidatedTaxes._def.schema.partial().safeParse(req.body);
+  if (!idCheck.success) {
+    res.status(400).json(ApiResponse.error({ message: "ID invalido" }));
+    return;
+  }
+
+  const parsed = validateTaxUpdate(req.body);
 
   if (!parsed.success) {
     res.status(400).json(
       ApiResponse.error({
-        message: "Datos inválidos",
+        message: "Datos invalidos",
         error: parsed.error.flatten(),
       })
     );
     return;
   }
 
-  try {
-    const existingTax = await prisma.tax.findUnique({
-      where: { id, status: { not: "deleted" }, isDeleted: false },
-    });
-
-    if (!existingTax) {
-      res.status(404).json(
-        ApiResponse.error({
-          message: "El impuesto no existe",
-        })
-      );
-      return;
-    }
-
-    if (req.user.store) {
-      if (existingTax.storeId !== req.user.store.id) {
-        res.status(403).json(
-          ApiResponse.error({
-            message: "No tienes permiso para editar este impuesto",
-          })
-        );
-        return;
-      }
-    } else {
-      res.status(403).json(
-        ApiResponse.error({
-          message: "No tienes permiso para editar impuestos",
-        })
-      );
-      return;
-    }
-
-    const updatedTax = await prisma.tax.update({
-      where: { id },
-      data: parsed.data,
-    });
-
-    res.json(
-      ApiResponse.success({
-        message: "Impuesto actualizado correctamente",
-        data: updatedTax,
-      })
-    );
-    return;
-  } catch (error) {
-    res.status(500).json(
-      ApiResponse.error({
-        message: "Error al actualizar el impuesto",
-        error: error instanceof Error ? error.message : String(error),
-      })
-    );
+  if (Object.keys(stripUndef(parsed.data)).length === 0) {
+    res
+      .status(400)
+      .json(ApiResponse.error({ message: "No hay cambios para aplicar" }));
     return;
   }
-};
-
-// Eliminar un tax
-export const deleteTax = async (req: Request, res: Response) => {
-  const { id } = req.params;
 
   try {
     const tax = await prisma.tax.findUnique({
-      where: { id, status: { not: "deleted" }, isDeleted: false },
+      where: { id: idCheck.data, isDeleted: false },
       include: { store: true },
     });
 
@@ -244,26 +181,69 @@ export const deleteTax = async (req: Request, res: Response) => {
       return;
     }
 
-    if (req.user.store) {
-      if (tax.storeId !== req.user.store.id) {
-        res.status(403).json(
+    if (!req.user?.store || tax.storeId !== req.user.store.id) {
+      res
+        .status(403)
+        .json(
+          ApiResponse.error({
+            message: "No tienes permiso para actualizar este impuesto",
+          })
+        );
+      return;
+    }
+
+    const updated = await prisma.tax.update({
+      where: { id: idCheck.data },
+      data: stripUndef(parsed.data),
+    });
+
+    res.json(
+      ApiResponse.success({
+        message: "Impuesto actualizado",
+        data: updated,
+      })
+    );
+  } catch (error) {
+    res.status(500).json(
+      ApiResponse.error({ message: "Error al actualizar el impuesto", error })
+    );
+  }
+};
+
+export const deleteTax = async (req: Request, res: Response) => {
+  const idCheck = taxIdSchema.safeParse(req.params.id);
+
+  if (!idCheck.success) {
+    res.status(400).json(ApiResponse.error({ message: "ID invalido" }));
+    return;
+  }
+
+  try {
+    const tax = await prisma.tax.findUnique({
+      where: { id: idCheck.data, isDeleted: false },
+      include: { store: true },
+    });
+
+    if (!tax) {
+      res
+        .status(404)
+        .json(ApiResponse.error({ message: "Impuesto no encontrado" }));
+      return;
+    }
+
+    if (!req.user?.store || tax.storeId !== req.user.store.id) {
+      res
+        .status(403)
+        .json(
           ApiResponse.error({
             message: "No tienes permiso para eliminar este impuesto",
           })
         );
-        return;
-      }
-    } else {
-      res.status(403).json(
-        ApiResponse.error({
-          message: "No tienes permiso para eliminar impuestos",
-        })
-      );
       return;
     }
 
-    await await prisma.tax.update({
-      where: { id: id },
+    await prisma.tax.update({
+      where: { id: idCheck.data },
       data: {
         isDeleted: true,
         status: "deleted",
@@ -272,28 +252,25 @@ export const deleteTax = async (req: Request, res: Response) => {
       },
     });
 
-    res.json(
-      ApiResponse.success({
-        message: "Impuesto eliminado correctamente",
-      })
-    );
+    res.json(ApiResponse.success({ message: "Impuesto eliminado" }));
   } catch (error) {
-    res.status(400).json(
-      ApiResponse.error({
-        message: "Error al eliminar el impuesto",
-        error,
-      })
+    res.status(500).json(
+      ApiResponse.error({ message: "Error al eliminar el impuesto", error })
     );
   }
 };
 
-// Eliminar un tax
-export const RestaurarTax = async (req: Request, res: Response) => {
-  const { id } = req.params;
+export const restoreTax = async (req: Request, res: Response) => {
+  const idCheck = taxIdSchema.safeParse(req.params.id);
+
+  if (!idCheck.success) {
+    res.status(400).json(ApiResponse.error({ message: "ID invalido" }));
+    return;
+  }
 
   try {
     const tax = await prisma.tax.findUnique({
-      where: { id },
+      where: { id: idCheck.data },
       include: { store: true },
     });
 
@@ -304,26 +281,19 @@ export const RestaurarTax = async (req: Request, res: Response) => {
       return;
     }
 
-    if (req.user.store) {
-      if (tax.storeId !== req.user.store.id) {
-        res.status(403).json(
+    if (!req.user?.store || tax.storeId !== req.user.store.id) {
+      res
+        .status(403)
+        .json(
           ApiResponse.error({
             message: "No tienes permiso para restaurar este impuesto",
           })
         );
-        return;
-      }
-    } else {
-      res.status(403).json(
-        ApiResponse.error({
-          message: "No tienes permiso para restaurar impuestos",
-        })
-      );
       return;
     }
 
-    await await prisma.tax.update({
-      where: { id: id },
+    const restored = await prisma.tax.update({
+      where: { id: idCheck.data },
       data: {
         isDeleted: false,
         status: "active",
@@ -334,15 +304,13 @@ export const RestaurarTax = async (req: Request, res: Response) => {
 
     res.json(
       ApiResponse.success({
-        message: "Impuesto restaurado correctamente",
+        message: "Impuesto restaurado",
+        data: restored,
       })
     );
   } catch (error) {
-    res.status(400).json(
-      ApiResponse.error({
-        message: "Error al restaurar el impuesto",
-        error,
-      })
+    res.status(500).json(
+      ApiResponse.error({ message: "Error al restaurar el impuesto", error })
     );
   }
 };

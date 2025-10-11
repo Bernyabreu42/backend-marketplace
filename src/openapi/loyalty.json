@@ -1,0 +1,406 @@
+{
+  "tags": [
+    {
+      "name": "Loyalty",
+      "description": "Programa de puntos y cashback"
+    }
+  ],
+  "paths": {
+    "/api/loyalty/actions": {
+      "get": {
+        "tags": ["Loyalty"],
+        "summary": "Listar acciones de lealtad",
+        "security": [{"basicAuth": [], "accessCookie": []}],
+        "responses": {
+          "200": {
+            "description": "Listado de acciones",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {"type": "boolean"},
+                    "message": {"type": "string"},
+                    "data": {
+                      "type": "array",
+                      "items": {"": "#/components/schemas/LoyaltyAction"}
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {"description": "No autorizado"}
+        }
+      },
+      "post": {
+        "tags": ["Loyalty"],
+        "summary": "Crear accion personalizada",
+        "security": [{"basicAuth": [], "accessCookie": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {"": "#/components/schemas/LoyaltyActionCreate"}
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Accion creada",
+            "content": {
+              "application/json": {
+                "schema": {"": "#/components/schemas/LoyaltyActionResponse"}
+              }
+            }
+          },
+          "400": {"description": "Datos invalidos"},
+          "403": {"description": "No autorizado"}
+        }
+      }
+    },
+    "/api/loyalty/actions/{id}": {
+      "patch": {
+        "tags": ["Loyalty"],
+        "summary": "Actualizar accion",
+        "security": [{"basicAuth": [], "accessCookie": []}],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {"type": "string", "format": "uuid"}
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {"": "#/components/schemas/LoyaltyActionUpdate"}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Accion actualizada",
+            "content": {
+              "application/json": {
+                "schema": {"": "#/components/schemas/LoyaltyActionResponse"}
+              }
+            }
+          },
+          "400": {"description": "Datos invalidos"},
+          "403": {"description": "No autorizado"},
+          "404": {"description": "No encontrada"}
+        }
+      }
+    },
+    "/api/loyalty/assign": {
+      "post": {
+        "tags": ["Loyalty"],
+        "summary": "Asignar puntos manualmente",
+        "security": [{"basicAuth": [], "accessCookie": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {"": "#/components/schemas/LoyaltyAssignRequest"}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Puntos asignados",
+            "content": {
+              "application/json": {
+                "schema": {"": "#/components/schemas/LoyaltyAssignResponse"}
+              }
+            }
+          },
+          "400": {"description": "Datos invalidos"},
+          "403": {"description": "No autorizado"}
+        }
+      }
+    },
+    "/api/loyalty/accounts/me": {
+      "get": {
+        "tags": ["Loyalty"],
+        "summary": "Consultar mis puntos",
+        "security": [{"basicAuth": [], "accessCookie": []}],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {"type": "integer", "minimum": 1, "maximum": 100, "default": 20}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Estado de cuenta",
+            "content": {
+              "application/json": {
+                "schema": {"": "#/components/schemas/LoyaltyAccountResponse"}
+              }
+            }
+          },
+          "401": {"description": "No autenticado"}
+        }
+      }
+    },
+    "/api/loyalty/accounts/{userId}": {
+      "get": {
+        "tags": ["Loyalty"],
+        "summary": "Consultar puntos de un usuario",
+        "security": [{"basicAuth": [], "accessCookie": []}],
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {"type": "string", "format": "uuid"}
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {"type": "integer", "minimum": 1, "maximum": 100, "default": 20}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Estado de cuenta",
+            "content": {
+              "application/json": {
+                "schema": {"": "#/components/schemas/LoyaltyAccountResponse"}
+              }
+            }
+          },
+          "400": {"description": "Parametros invalidos"},
+          "403": {"description": "No autorizado"}
+        }
+      }
+    },
+    "/api/loyalty/redeem": {
+      "post": {
+        "tags": ["Loyalty"],
+        "summary": "Canjear puntos",
+        "security": [{"basicAuth": [], "accessCookie": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {"": "#/components/schemas/LoyaltyRedeemRequest"}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Canje realizado",
+            "content": {
+              "application/json": {
+                "schema": {"": "#/components/schemas/LoyaltyRedeemResponse"}
+              }
+            }
+          },
+          "400": {"description": "Datos invalidos"},
+          "401": {"description": "No autenticado"},
+          "403": {"description": "No autorizado"}
+        }
+      }
+    },
+    "/api/loyalty/orders/{orderId}/award": {
+      "post": {
+        "tags": ["Loyalty"],
+        "summary": "Forzar recalculo de puntos de una orden",
+        "security": [{"basicAuth": [], "accessCookie": []}],
+        "parameters": [
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "schema": {"type": "string", "format": "uuid"}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Puntos procesados",
+            "content": {
+              "application/json": {
+                "schema": {"": "#/components/schemas/LoyaltyOrderAwardResponse"}
+              }
+            }
+          },
+          "400": {"description": "Parametros invalidos"},
+          "403": {"description": "No autorizado"},
+          "404": {"description": "Orden no encontrada"}
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "LoyaltyAction": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string", "format": "uuid"},
+          "key": {"type": "string"},
+          "name": {"type": "string"},
+          "description": {"type": "string"},
+          "defaultPoints": {"type": "integer"},
+          "isActive": {"type": "boolean"},
+          "createdAt": {"type": "string", "format": "date-time"},
+          "updatedAt": {"type": "string", "format": "date-time"}
+        }
+      },
+      "LoyaltyActionCreate": {
+        "type": "object",
+        "required": ["key", "name", "defaultPoints"],
+        "properties": {
+          "key": {"type": "string"},
+          "name": {"type": "string"},
+          "description": {"type": "string"},
+          "defaultPoints": {"type": "integer", "minimum": 0},
+          "isActive": {"type": "boolean"}
+        }
+      },
+      "LoyaltyActionUpdate": {
+        "type": "object",
+        "properties": {
+          "name": {"type": "string"},
+          "description": {"type": "string"},
+          "defaultPoints": {"type": "integer"},
+          "isActive": {"type": "boolean"}
+        }
+      },
+      "LoyaltyActionResponse": {
+        "type": "object",
+        "properties": {
+          "success": {"type": "boolean"},
+          "message": {"type": "string"},
+          "data": {"": "#/components/schemas/LoyaltyAction"}
+        }
+      },
+      "LoyaltyAssignRequest": {
+        "type": "object",
+        "required": ["userId"],
+        "properties": {
+          "userId": {"type": "string", "format": "uuid"},
+          "actionKey": {"type": "string"},
+          "points": {"type": "integer"},
+          "multiplier": {"type": "number"},
+          "referenceType": {"type": "string"},
+          "referenceId": {"type": "string"},
+          "description": {"type": "string"},
+          "metadata": {"type": "object"}
+        }
+      },
+      "LoyaltyAssignResponse": {
+        "type": "object",
+        "properties": {
+          "success": {"type": "boolean"},
+          "message": {"type": "string"},
+          "data": {
+            "type": "object",
+            "properties": {
+              "account": {"": "#/components/schemas/LoyaltyAccount"},
+              "transaction": {"": "#/components/schemas/LoyaltyTransaction"},
+              "action": {"": "#/components/schemas/LoyaltyAction"}
+            }
+          }
+        }
+      },
+      "LoyaltyAccount": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string", "format": "uuid"},
+          "userId": {"type": "string", "format": "uuid"},
+          "balance": {"type": "integer"},
+          "lifetimeEarned": {"type": "integer"},
+          "lifetimeRedeemed": {"type": "integer"},
+          "createdAt": {"type": "string", "format": "date-time"},
+          "updatedAt": {"type": "string", "format": "date-time"}
+        }
+      },
+      "LoyaltyTransaction": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string", "format": "uuid"},
+          "actionId": {"type": "string", "format": "uuid"},
+          "referenceType": {"type": "string"},
+          "referenceId": {"type": "string"},
+          "points": {"type": "integer"},
+          "description": {"type": "string"},
+          "createdAt": {"type": "string", "format": "date-time"}
+        }
+      },
+      "LoyaltyAccountResponse": {
+        "type": "object",
+        "properties": {
+          "success": {"type": "boolean"},
+          "message": {"type": "string"},
+          "data": {
+            "type": "object",
+            "properties": {
+              "account": {"": "#/components/schemas/LoyaltyAccount"},
+              "transactions": {
+                "type": "array",
+                "items": {"": "#/components/schemas/LoyaltyTransaction"}
+              },
+              "redeemablePoints": {"type": "integer"},
+              "redeemableAmount": {"type": "number"}
+            }
+          }
+        }
+      },
+      "LoyaltyRedeemRequest": {
+        "type": "object",
+        "required": ["points"],
+        "properties": {
+          "userId": {"type": "string", "format": "uuid"},
+          "points": {"type": "integer", "minimum": 1},
+          "note": {"type": "string"}
+        }
+      },
+      "LoyaltyRedeemResponse": {
+        "type": "object",
+        "properties": {
+          "success": {"type": "boolean"},
+          "message": {"type": "string"},
+          "data": {
+            "type": "object",
+            "properties": {
+              "account": {"": "#/components/schemas/LoyaltyAccount"},
+              "transaction": {"": "#/components/schemas/LoyaltyTransaction"},
+              "redemption": {
+                "type": "object",
+                "properties": {
+                  "id": {"type": "string", "format": "uuid"},
+                  "points": {"type": "integer"},
+                  "amount": {"type": "number"},
+                  "note": {"type": "string"},
+                  "createdAt": {"type": "string", "format": "date-time"}
+                }
+              },
+              "amount": {"type": "number"}
+            }
+          }
+        }
+      },
+      "LoyaltyOrderAwardResponse": {
+        "type": "object",
+        "properties": {
+          "success": {"type": "boolean"},
+          "message": {"type": "string"},
+          "data": {
+            "type": "object",
+            "properties": {
+              "account": {"": "#/components/schemas/LoyaltyAccount"},
+              "transaction": {"": "#/components/schemas/LoyaltyTransaction"},
+              "points": {"type": "integer"},
+              "skipped": {"type": "boolean"}
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -16,7 +16,7 @@ export class ApiResponse<T = any> {
 
   constructor({
     success,
-    message = "Éxito",
+    message = "Exito",
     data,
     error,
   }: {
@@ -64,3 +64,4 @@ export class ApiResponse<T = any> {
     });
   }
 }
+

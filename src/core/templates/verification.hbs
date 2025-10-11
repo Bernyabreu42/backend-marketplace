@@ -1,28 +1,82 @@
 <!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <title>Verificación de Cuenta</title>
-  <style>
-    body { font-family: Arial, sans-serif; background-color: #f9f9f9; color: #333; padding: 20px; }
-    .container { background-color: #fff; padding: 30px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
-    .button { display: inline-block; padding: 10px 20px; background-color: #4CAF50; color: #fff !important; text-decoration: none; border-radius: 5px; }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <h2>¡Verifica tu cuenta en Health Friend SRL!</h2>
-    <p>Hola {{name}},</p>
-    <p>
-      ¡Gracias por registrarte en <strong>Health Friend SRL</strong>!<br>
-      Para activar tu cuenta y comenzar a utilizar todos los servicios, por favor verifica tu dirección de correo electrónico haciendo clic en el siguiente botón:
-    </p>
-    <p>
-      <a href="{{verificationUrl}}" class="button">Verificar mi cuenta</a>
-    </p>
-    <p>Si no has creado esta cuenta, puedes ignorar este mensaje.</p>
-    <p>¡Bienvenido a la comunidad!</p>
-    <p>El equipo de Health Friend SRL</p>
-  </div>
-</body>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Verificar cuenta</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 32px 12px;
+        background-color: #f6f8fa;
+        color: #24292f;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial,
+          sans-serif;
+      }
+      .container {
+        max-width: 620px;
+        margin: 0 auto;
+      }
+      .card {
+        background: #ffffff;
+        border: 1px solid #d0d7de;
+        border-radius: 6px;
+        padding: 32px;
+      }
+      h1 {
+        margin: 0 0 16px;
+        font-size: 22px;
+        font-weight: 600;
+      }
+      p {
+        margin: 0 0 16px;
+        line-height: 1.5;
+      }
+      .button {
+        display: inline-block;
+        background-color: #0969da;
+        color: #ffffff !important;
+        text-decoration: none;
+        border-radius: 6px;
+        padding: 12px 24px;
+        font-weight: 600;
+      }
+      .footer {
+        margin-top: 24px;
+        font-size: 13px;
+        color: #57606a;
+        line-height: 1.6;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="card">
+        <h1>Confirma tu correo, <strong>{{name}}</strong></h1>
+        <p>
+          Gracias por crear una cuenta. Antes de comenzar, necesitamos que
+          verifiques tu dirección de correo electrónico para proteger tu acceso.
+        </p>
+        <p>
+          <a
+            class="button"
+            href="{{verificationUrl}}"
+            target="_blank"
+            rel="noopener"
+          >
+            Verificar mi cuenta
+          </a>
+        </p>
+        <p>
+          Si no reconoces esta solicitud, puedes ignorar este mensaje y la cuenta
+          no se activará.
+        </p>
+        <p>¡Nos alegra tenerte con nosotros!</p>
+      </div>
+      <div class="footer">
+        Recibiste este correo porque se registró una cuenta con esta dirección.
+        Si no fuiste tú, te recomendamos eliminar este mensaje.
+      </div>
+    </div>
+  </body>
 </html>

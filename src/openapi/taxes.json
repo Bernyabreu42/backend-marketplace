@@ -1,0 +1,260 @@
+{
+  "paths": {
+    "/api/taxes": {
+      "get": {
+        "tags": ["Taxes"],
+        "summary": "Listar impuestos",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {"type": "integer", "minimum": 1, "default": 1}
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {"type": "integer", "minimum": 1, "maximum": 100, "default": 10}
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "schema": {"type": "string", "enum": ["percentage", "fixed"]}
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {"type": "string", "enum": ["active", "inactive", "deleted"]}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Listado paginado",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/TaxListResponse"}
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Taxes"],
+        "summary": "Crear impuesto",
+        "security": [{"basicAuth": [], "accessCookie": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {"$ref": "#/components/schemas/TaxCreateRequest"}
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Impuesto creado",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/TaxResponse"}
+              }
+            }
+          },
+          "400": {"description": "Datos inválidos"},
+          "403": {"description": "No autorizado"}
+        }
+      }
+    },
+    "/api/taxes/store/{storeId}": {
+      "get": {
+        "tags": ["Taxes"],
+        "summary": "Impuestos por tienda",
+        "security": [{"basicAuth": [], "accessCookie": []}],
+        "parameters": [
+          {
+            "name": "storeId",
+            "in": "path",
+            "required": true,
+            "schema": {"type": "string", "format": "uuid"}
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {"type": "integer", "minimum": 1, "default": 1}
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {"type": "integer", "minimum": 1, "maximum": 100, "default": 10}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Listado paginado",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/TaxListResponse"}
+              }
+            }
+          },
+          "400": {"description": "ID inválido"}
+        }
+      }
+    },
+    "/api/taxes/{id}": {
+      "get": {
+        "tags": ["Taxes"],
+        "summary": "Detalle de impuesto",
+        "parameters": [
+          {"name": "id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}}
+        ],
+        "responses": {
+          "200": {
+            "description": "Detalle",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/TaxResponse"}
+              }
+            }
+          },
+          "400": {"description": "ID inválido"},
+          "404": {"description": "Impuesto no encontrado"}
+        }
+      },
+      "patch": {
+        "tags": ["Taxes"],
+        "summary": "Actualizar impuesto",
+        "security": [{"basicAuth": [], "accessCookie": []}],
+        "parameters": [
+          {"name": "id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}}
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {"$ref": "#/components/schemas/TaxUpdateRequest"}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Actualizado",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/TaxResponse"}}}
+          },
+          "400": {"description": "Datos inválidos"},
+          "403": {"description": "No autorizado"},
+          "404": {"description": "Impuesto no encontrado"}
+        }
+      },
+      "delete": {
+        "tags": ["Taxes"],
+        "summary": "Eliminar impuesto",
+        "security": [{"basicAuth": [], "accessCookie": []}],
+        "parameters": [
+          {"name": "id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}}
+        ],
+        "responses": {
+          "200": {
+            "description": "Eliminado",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/MessageResponse"}}}
+          },
+          "403": {"description": "No autorizado"},
+          "404": {"description": "Impuesto no encontrado"}
+        }
+      }
+    },
+    "/api/taxes/{id}/restore": {
+      "patch": {
+        "tags": ["Taxes"],
+        "summary": "Restaurar impuesto",
+        "security": [{"basicAuth": [], "accessCookie": []}],
+        "parameters": [
+          {"name": "id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}}
+        ],
+        "responses": {
+          "200": {
+            "description": "Restaurado",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/TaxResponse"}}}
+          },
+          "403": {"description": "No autorizado"},
+          "404": {"description": "Impuesto no encontrado"}
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "PaginationMeta": {
+        "type": "object",
+        "properties": {
+          "page": {"type": "integer", "example": 1},
+          "limit": {"type": "integer", "example": 10},
+          "total": {"type": "integer", "example": 25},
+          "totalPages": {"type": "integer", "example": 3},
+          "next": {"type": "boolean", "example": true},
+          "prev": {"type": "boolean", "example": false}
+        }
+      },
+      "Tax": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string", "format": "uuid"},
+          "name": {"type": "string"},
+          "type": {"type": "string", "enum": ["percentage", "fixed"]},
+          "rate": {"type": "number", "format": "float"},
+          "description": {"type": ["string", "null"]},
+          "status": {"type": "string", "enum": ["active", "inactive", "deleted"]},
+          "storeId": {"type": "string", "format": "uuid"},
+          "createdAt": {"type": "string", "format": "date-time"},
+          "updatedAt": {"type": "string", "format": "date-time"}
+        }
+      },
+      "TaxListResponse": {
+        "type": "object",
+        "properties": {
+          "success": {"type": "boolean", "example": true},
+          "message": {"type": "string", "example": "OK"},
+          "data": {
+            "type": "array",
+            "items": {"$ref": "#/components/schemas/Tax"}
+          },
+          "pagination": {"$ref": "#/components/schemas/PaginationMeta"}
+        }
+      },
+      "TaxResponse": {
+        "type": "object",
+        "properties": {
+          "success": {"type": "boolean", "example": true},
+          "message": {"type": "string", "example": "OK"},
+          "data": {"$ref": "#/components/schemas/Tax"}
+        }
+      },
+      "MessageResponse": {
+        "type": "object",
+        "properties": {
+          "success": {"type": "boolean", "example": true},
+          "message": {"type": "string", "example": "Impuesto eliminado"}
+        }
+      },
+      "TaxCreateRequest": {
+        "type": "object",
+        "required": ["name", "type", "rate"],
+        "properties": {
+          "name": {"type": "string"},
+          "type": {"type": "string", "enum": ["percentage", "fixed"]},
+          "rate": {"type": "number", "format": "float"},
+          "description": {"type": "string"},
+          "status": {"type": "string", "enum": ["active", "inactive", "deleted"], "default": "active"}
+        }
+      },
+      "TaxUpdateRequest": {
+        "type": "object",
+        "properties": {
+          "name": {"type": "string"},
+          "type": {"type": "string", "enum": ["percentage", "fixed"]},
+          "rate": {"type": "number", "format": "float"},
+          "description": {"type": ["string", "null"]},
+          "status": {"type": "string", "enum": ["active", "inactive", "deleted"]}
+        }
+      }
+    }
+  }
+}

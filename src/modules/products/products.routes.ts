@@ -37,3 +37,4 @@ router.patch("/:id", routeProtector([RolesEnum.SELLER]), updateProduct);
 router.delete("/:id", routeProtector([RolesEnum.SELLER]), deleteProduct);
 
 export default router;
+

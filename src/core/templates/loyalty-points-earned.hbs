@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Nuevos puntos de lealtad</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 32px 12px;
+        background-color: #f6f8fa;
+        color: #24292f;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial,
+          sans-serif;
+      }
+      .container {
+        max-width: 620px;
+        margin: 0 auto;
+      }
+      .card {
+        background: #ffffff;
+        border: 1px solid #d0d7de;
+        border-radius: 6px;
+        padding: 32px;
+      }
+      h1 {
+        margin: 0 0 16px;
+        font-size: 22px;
+        font-weight: 600;
+      }
+      p {
+        margin: 0 0 16px;
+        line-height: 1.5;
+      }
+      .highlight {
+        margin: 24px 0;
+        padding: 18px;
+        border-radius: 6px;
+        background-color: #f1f8ff;
+        border: 1px solid #b6e3ff;
+        font-weight: 600;
+        text-align: center;
+        font-size: 18px;
+      }
+      .footer {
+        margin-top: 24px;
+        font-size: 13px;
+        color: #57606a;
+        line-height: 1.6;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="card">
+        <h1>¡Sumaste puntos, <strong>{{customerName}}</strong>!</h1>
+        <p>Registramos un nuevo movimiento en tu cuenta de lealtad:</p>
+        <div class="highlight">
+          {{pointsAwarded}} puntos {{movementSource}}
+        </div>
+        {{#if movementNote}}
+          <p>{{movementNote}}</p>
+        {{/if}}
+        <p>
+          Tu saldo actual es de <strong>{{currentBalance}} puntos</strong>,
+          equivalente a <strong>{{currentBalanceValue}}</strong>.
+        </p>
+        {{#if programUrl}}
+          <p>
+            Consulta tu historial y canjea recompensas cuando quieras desde:
+            <a href="{{programUrl}}" target="_blank" rel="noopener"
+              >{{programUrl}}</a
+            >.
+          </p>
+        {{/if}}
+        <p>¡Gracias por seguir eligiéndonos!</p>
+      </div>
+      <div class="footer">
+        Recibiste este correo porque se acreditaron puntos en tu programa de
+        lealtad. Si no reconoces este movimiento, contáctanos para que podamos
+        ayudarte.
+      </div>
+    </div>
+  </body>
+</html>

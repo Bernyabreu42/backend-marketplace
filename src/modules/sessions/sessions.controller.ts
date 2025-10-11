@@ -1,24 +1,20 @@
 import jwt, { type JwtPayload } from "jsonwebtoken";
+import { env } from "../../config/env";
 import prisma from "../../database/prisma";
+import { generateRefreshToken } from "../../utils/jwt";
 
-const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET!;
+const { JWT_REFRESH_SECRET } = env;
 const REFRESH_TOKEN_EXPIRATION_DAYS = 7;
-
-if (!JWT_REFRESH_SECRET) {
-  throw new Error("JWT_REFRESH_SECRET no configurado");
-}
 
 const addDays = (d: Date, n: number) =>
   new Date(d.getTime() + n * 24 * 60 * 60 * 1000);
 
-/** 1) Crear sesión + presencia */
+/** 1) Crear sesion + presencia */
 export async function createSession(
   userId: string,
   meta?: { userAgent?: string; ip?: string; deviceId?: string }
 ): Promise<string> {
-  const refreshToken = jwt.sign({ sub: userId }, JWT_REFRESH_SECRET, {
-    expiresIn: `${REFRESH_TOKEN_EXPIRATION_DAYS}d`,
-  });
+  const refreshToken = generateRefreshToken({ id: userId });
 
   const expiresAt = addDays(new Date(), REFRESH_TOKEN_EXPIRATION_DAYS);
 
@@ -43,7 +39,7 @@ export async function createSession(
   return refreshToken;
 }
 
-/** 2) Invalidar (revocar) una sesión por refreshToken */
+/** 2) Invalidar (revocar) una sesion por refreshToken */
 export async function deleteSession(refreshToken: string) {
   const session = await prisma.session.findUnique({ where: { refreshToken } });
   if (!session) return;
@@ -71,9 +67,9 @@ export async function deleteSession(refreshToken: string) {
   });
 }
 
-/** 3) Validar sesión (firma JWT + flags de DB + estado de cuenta) */
+/** 3) Validar sesion (firma JWT + flags de DB + estado de cuenta) */
 export async function getValidSession(refreshToken: string) {
-  // Verificá que el token no esté modificado y no esté expirado según el JWT
+  // Verifica que el token no esta modificado y no esta expirado segun el JWT
   try {
     jwt.verify(refreshToken, JWT_REFRESH_SECRET) as JwtPayload;
   } catch {
@@ -101,13 +97,11 @@ export async function rotateRefreshToken(oldToken: string) {
   const session = await getValidSession(oldToken);
   if (!session) return null;
 
-  const newToken = jwt.sign({ sub: session.userId }, JWT_REFRESH_SECRET, {
-    expiresIn: `${REFRESH_TOKEN_EXPIRATION_DAYS}d`,
-  });
+  const newToken = generateRefreshToken({ id: session.userId });
 
   const newExpires = addDays(new Date(), REFRESH_TOKEN_EXPIRATION_DAYS);
 
-  // Podés: a) actualizar la misma fila, o b) revocar y crear una nueva (histórico más limpio).
+  // Podes: a) actualizar la misma fila, o b) revocar y crear una nueva (historico mas limpio).
   await prisma.session.update({
     where: { id: session.id },
     data: {
@@ -119,3 +113,4 @@ export async function rotateRefreshToken(oldToken: string) {
 
   return { refreshToken: newToken, expiresAt: newExpires };
 }
+

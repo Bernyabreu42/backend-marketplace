@@ -1,5 +1,7 @@
+﻿import app from "./app";
+import { env } from "./config/env";
 import prisma from "./database/prisma";
-import app from "./app";
+import "./modules/orders/order-loyalty-hook";
 
 // health check opcional
 app.get("/healthz", async (_req, res) => {
@@ -11,19 +13,20 @@ app.get("/healthz", async (_req, res) => {
   }
 });
 
-const port = Number(process.env.PORT ?? 4000);
+const port = env.PORT;
 
 async function start() {
-  await prisma.$connect(); // abre el pool una vez
-  app.listen(port, () => console.log(`API → http://localhost:${port}`));
+  await prisma.$connect();
+  app.listen(port, () => console.log(`API running on http://localhost:${port}`));
 }
 
 start();
 
 async function shutdown() {
-  console.log("Shutting down…");
+  console.log("Shutting down.");
   await prisma.$disconnect();
   process.exit(0);
 }
+
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);

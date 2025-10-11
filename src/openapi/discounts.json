@@ -1,0 +1,176 @@
+{
+  "paths": {
+    "/api/discounts": {
+      "get": {
+        "tags": ["Discounts"],
+        "summary": "Listar descuentos",
+        "security": [{"basicAuth": [], "accessCookie": []}],
+        "parameters": [
+          {"name": "page", "in": "query", "schema": {"type": "integer", "minimum": 1, "default": 1}},
+          {"name": "limit", "in": "query", "schema": {"type": "integer", "minimum": 1, "maximum": 100, "default": 10}},
+          {"name": "type", "in": "query", "schema": {"type": "string", "enum": ["percentage", "fixed"]}}
+        ],
+        "responses": {
+          "200": {
+            "description": "Listado paginado",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/DiscountListResponse"}}}
+          }
+        }
+      },
+      "post": {
+        "tags": ["Discounts"],
+        "summary": "Crear descuento",
+        "security": [{"basicAuth": [], "accessCookie": []}],
+        "requestBody": {
+          "required": true,
+          "content": {"application/json": {"schema": {"$ref": "#/components/schemas/DiscountCreateRequest"}}}
+        },
+        "responses": {
+          "201": {
+            "description": "Descuento creado",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/DiscountResponse"}}}
+          },
+          "400": {"description": "Datos inválidos"},
+          "403": {"description": "No autorizado"}
+        }
+      }
+    },
+    "/api/discounts/{id}": {
+      "get": {
+        "tags": ["Discounts"],
+        "summary": "Detalle de descuento",
+        "security": [{"basicAuth": [], "accessCookie": []}],
+        "parameters": [
+          {"name": "id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}}
+        ],
+        "responses": {
+          "200": {"description": "Detalle", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/DiscountResponse"}}}},
+          "400": {"description": "ID inválido"},
+          "404": {"description": "Descuento no encontrado"}
+        }
+      },
+      "patch": {
+        "tags": ["Discounts"],
+        "summary": "Actualizar descuento",
+        "security": [{"basicAuth": [], "accessCookie": []}],
+        "parameters": [
+          {"name": "id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}}
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {"application/json": {"schema": {"$ref": "#/components/schemas/DiscountUpdateRequest"}}}
+        },
+        "responses": {
+          "200": {"description": "Actualizado", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/DiscountResponse"}}}},
+          "400": {"description": "Datos inválidos"},
+          "403": {"description": "No autorizado"},
+          "404": {"description": "Descuento no encontrado"}
+        }
+      },
+      "delete": {
+        "tags": ["Discounts"],
+        "summary": "Eliminar descuento",
+        "security": [{"basicAuth": [], "accessCookie": []}],
+        "parameters": [
+          {"name": "id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}}
+        ],
+        "responses": {
+          "200": {"description": "Eliminado", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/MessageResponse"}}}},
+          "403": {"description": "No autorizado"},
+          "404": {"description": "Descuento no encontrado"}
+        }
+      }
+    },
+    "/api/discounts/{id}/restore": {
+      "patch": {
+        "tags": ["Discounts"],
+        "summary": "Restaurar descuento",
+        "security": [{"basicAuth": [], "accessCookie": []}],
+        "parameters": [
+          {"name": "id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}}
+        ],
+        "responses": {
+          "200": {"description": "Restaurado", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/DiscountResponse"}}}},
+          "404": {"description": "Descuento no encontrado"}
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Discount": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string", "format": "uuid"},
+          "name": {"type": "string"},
+          "type": {"type": "string", "enum": ["percentage", "fixed"]},
+          "value": {"type": "number", "format": "float"},
+          "description": {"type": ["string", "null"]},
+          "status": {"type": "string", "enum": ["active", "inactive", "deleted"]},
+          "storeId": {"type": "string", "format": "uuid"},
+          "createdAt": {"type": "string", "format": "date-time"},
+          "updatedAt": {"type": "string", "format": "date-time"}
+        }
+      },
+      "DiscountCreateRequest": {
+        "type": "object",
+        "required": ["name", "type", "value"],
+        "properties": {
+          "name": {"type": "string"},
+          "type": {"type": "string", "enum": ["percentage", "fixed"]},
+          "value": {"type": "number", "format": "float"},
+          "description": {"type": "string"},
+          "status": {"type": "string", "enum": ["active", "inactive", "deleted"], "default": "active"}
+        }
+      },
+      "DiscountUpdateRequest": {
+        "type": "object",
+        "properties": {
+          "name": {"type": "string"},
+          "type": {"type": "string", "enum": ["percentage", "fixed"]},
+          "value": {"type": "number", "format": "float"},
+          "description": {"type": ["string", "null"]},
+          "status": {"type": "string", "enum": ["active", "inactive", "deleted"]}
+        }
+      },
+      "DiscountListResponse": {
+        "type": "object",
+        "properties": {
+          "success": {"type": "boolean", "example": true},
+          "message": {"type": "string", "example": "OK"},
+          "data": {
+            "type": "array",
+            "items": {"$ref": "#/components/schemas/Discount"}
+          },
+          "pagination": {"$ref": "#/components/schemas/PaginationMeta"}
+        }
+      },
+      "DiscountResponse": {
+        "type": "object",
+        "properties": {
+          "success": {"type": "boolean", "example": true},
+          "message": {"type": "string", "example": "OK"},
+          "data": {"$ref": "#/components/schemas/Discount"}
+        }
+      },
+      "PaginationMeta": {
+        "type": "object",
+        "properties": {
+          "page": {"type": "integer", "example": 1},
+          "limit": {"type": "integer", "example": 10},
+          "total": {"type": "integer", "example": 20},
+          "totalPages": {"type": "integer", "example": 2},
+          "next": {"type": "boolean", "example": true},
+          "prev": {"type": "boolean", "example": false}
+        }
+      },
+      "MessageResponse": {
+        "type": "object",
+        "properties": {
+          "success": {"type": "boolean", "example": true},
+          "message": {"type": "string", "example": "Descuento eliminado"}
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,371 @@
+{
+  "paths": {
+    "/api/stores/create": {
+      "post": {
+        "tags": ["Stores"],
+        "summary": "Crear tienda",
+        "security": [{"basicAuth": [], "accessCookie": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {"$ref": "#/components/schemas/StoreCreateRequest"}
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Tienda creada",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/StoreResponse"}
+              }
+            }
+          },
+          "400": {"description": "Datos inválidos"},
+          "401": {"description": "No autenticado"},
+          "409": {"description": "El usuario ya posee una tienda"}
+        }
+      }
+    },
+    "/api/stores/all": {
+      "get": {
+        "tags": ["Stores"],
+        "summary": "Listar tiendas",
+        "security": [{"basicAuth": [], "accessCookie": []}],
+        "parameters": [
+          {"name": "page", "in": "query", "schema": {"type": "integer", "minimum": 1, "default": 1}},
+          {"name": "perPage", "in": "query", "schema": {"type": "integer", "minimum": 1, "maximum": 100, "default": 10}},
+          {"name": "search", "in": "query", "schema": {"type": "string"}},
+          {"name": "status", "in": "query", "schema": {"type": "string", "enum": ["pending", "active", "inactive", "banned", "deleted"]}}
+        ],
+        "responses": {
+          "200": {
+            "description": "Listado paginado",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/StoreListResponse"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/stores/featured": {
+      "get": {
+        "tags": ["Stores"],
+        "summary": "Listar tiendas destacadas",
+        "responses": {
+          "200": {
+            "description": "Listado de tiendas destacadas o mejor valoradas",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/StoreFeaturedResponse"}
+              }
+            }
+          },
+          "500": {"description": "Error al obtener tiendas destacadas"}
+        }
+      }
+    },
+    "/api/stores/update/{id}": {
+      "patch": {
+        "tags": ["Stores"],
+        "summary": "Actualizar tienda",
+        "security": [{"basicAuth": [], "accessCookie": []}],
+        "parameters": [
+          {"name": "id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}}
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {"application/json": {"schema": {"$ref": "#/components/schemas/StoreUpdateRequest"}}}
+        },
+        "responses": {
+          "200": {"description": "Actualizada", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/StoreResponse"}}}},
+          "400": {"description": "Datos inválidos"},
+          "403": {"description": "No autorizado"},
+          "404": {"description": "Tienda no encontrada"}
+        }
+      }
+    },
+    "/api/stores/{id}": {
+      "get": {
+        "tags": ["Stores"],
+        "summary": "Detalle de tienda",
+        "security": [{"basicAuth": [], "accessCookie": []}],
+        "parameters": [
+          {"name": "id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}}
+        ],
+        "responses": {
+          "200": {"description": "Detalle", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/StoreDetailResponse"}}}},
+          "400": {"description": "ID inválido"},
+          "404": {"description": "Tienda no encontrada"}
+        }
+      },
+      "delete": {
+        "tags": ["Stores"],
+        "summary": "Eliminar tienda",
+        "security": [{"basicAuth": [], "accessCookie": []}],
+        "parameters": [
+          {"name": "id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}}
+        ],
+        "responses": {
+          "200": {"description": "Eliminada", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/MessageResponse"}}}},
+          "403": {"description": "No autorizado"},
+          "404": {"description": "Tienda no encontrada"}
+        }
+      }
+    },
+    "/api/stores/{storeId}/status": {
+      "patch": {
+        "tags": ["Stores"],
+        "summary": "Actualizar estado",
+        "security": [{"basicAuth": [], "accessCookie": []}],
+        "parameters": [
+          {"name": "storeId", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}}
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {"application/json": {"schema": {"$ref": "#/components/schemas/StoreStatusRequest"}}}
+        },
+        "responses": {
+          "200": {"description": "Actualizado", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/StoreResponse"}}}},
+          "403": {"description": "No autorizado"},
+          "404": {"description": "Tienda no encontrada"}
+        }
+      }
+    },
+    "/api/stores/update-image": {
+      "patch": {
+        "tags": ["Stores"],
+        "summary": "Actualizar imágenes",
+        "security": [{"basicAuth": [], "accessCookie": []}],
+        "requestBody": {
+          "required": true,
+          "content": {"application/json": {"schema": {"$ref": "#/components/schemas/StoreImagesRequest"}}}
+        },
+        "responses": {
+          "200": {"description": "Actualizado", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/MessageResponse"}}}},
+          "400": {"description": "Sin imágenes"},
+          "404": {"description": "Tienda no encontrada"}
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Store": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string", "format": "uuid"},
+          "name": {"type": "string"},
+          "tagline": {"type": ["string", "null"]},
+          "description": {"type": "string"},
+          "email": {"type": ["string", "null"], "format": "email"},
+          "phone": {"type": ["string", "null"]},
+          "address": {"type": ["string", "null"]},
+          "website": {"type": ["string", "null"]},
+          "logo": {"type": ["string", "null"]},
+          "banner": {"type": ["string", "null"]},
+          "facebook": {"type": ["string", "null"]},
+          "instagram": {"type": ["string", "null"]},
+          "twitter": {"type": ["string", "null"]},
+          "youtube": {"type": ["string", "null"]},
+          "status": {"type": "string", "enum": ["pending", "active", "inactive", "banned", "deleted"]},
+          "isFeatured": {"type": "boolean", "example": false},
+          "featuredUntil": {"type": ["string", "null"], "format": "date-time", "example": "2025-12-31T23:59:59.000Z"},
+          "keywords": {"type": ["string", "null"]},
+          "metaTitle": {"type": ["string", "null"]},
+          "metaDesc": {"type": ["string", "null"]},
+          "businessHours": {"type": ["array", "null"], "items": {"type": "object"}},
+          "ownerId": {"type": "string", "format": "uuid"},
+          "createdAt": {"type": "string", "format": "date-time"},
+          "updatedAt": {"type": "string", "format": "date-time"}
+        }
+      },
+      "StoreOwner": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string", "format": "uuid"},
+          "email": {"type": "string", "format": "email"},
+          "username": {"type": ["string", "null"]},
+          "displayName": {"type": ["string", "null"]},
+          "phone": {"type": ["string", "null"]},
+          "status": {"type": "string"},
+          "role": {"type": "string"}
+        }
+      },
+      "StoreDetail": {
+        "allOf": [
+          {"$ref": "#/components/schemas/Store"},
+          {
+            "type": "object",
+            "properties": {
+              "owner": {"$ref": "#/components/schemas/StoreOwner"},
+              "_count": {
+                "type": "object",
+                "properties": {
+                  "products": {"type": "integer"},
+                  "reviews": {"type": "integer"}
+                }
+              }
+            }
+          }
+        ]
+      },
+      "StoreResponse": {
+        "type": "object",
+        "properties": {
+          "success": {"type": "boolean", "example": true},
+          "message": {"type": "string", "example": "OK"},
+          "data": {"$ref": "#/components/schemas/Store"}
+        }
+      },
+      "StoreDetailResponse": {
+        "type": "object",
+        "properties": {
+          "success": {"type": "boolean", "example": true},
+          "message": {"type": "string", "example": "OK"},
+          "data": {"$ref": "#/components/schemas/StoreDetail"}
+        }
+      },
+      "StoreListResponse": {
+        "type": "object",
+        "properties": {
+          "success": {"type": "boolean", "example": true},
+          "message": {"type": "string", "example": "OK"},
+          "data": {
+            "type": "array",
+            "items": {"$ref": "#/components/schemas/StoreDetail"}
+          },
+          "pagination": {"$ref": "#/components/schemas/PaginationMeta"}
+        }
+      },
+      "StoreMetrics": {
+        "type": "object",
+        "properties": {
+          "ratingAverage": {"type": ["number", "null"], "example": 4.8},
+          "ratingsCount": {"type": "integer", "example": 12},
+          "salesCount": {"type": "integer", "example": 34}
+        }
+      },
+      "StoreWithMetrics": {
+        "allOf": [
+          {"$ref": "#/components/schemas/Store"},
+          {
+            "type": "object",
+            "properties": {
+              "metrics": {"$ref": "#/components/schemas/StoreMetrics"}
+            }
+          }
+        ]
+      },
+      "StoreFeaturedResponse": {
+        "type": "object",
+        "properties": {
+          "success": {"type": "boolean", "example": true},
+          "message": {"type": "string", "example": "Tiendas destacadas"},
+          "data": {
+            "type": "array",
+            "items": {"$ref": "#/components/schemas/StoreWithMetrics"}
+          }
+        }
+      },
+      "StoreCreateRequest": {
+        "type": "object",
+        "required": ["name", "description"],
+        "properties": {
+          "name": {"type": "string"},
+          "tagline": {"type": "string"},
+          "description": {"type": "string"},
+          "email": {"type": "string", "format": "email"},
+          "phone": {"type": "string"},
+          "address": {"type": "string"},
+          "website": {"type": "string"},
+          "logo": {"type": "string"},
+          "banner": {"type": "string"},
+          "profileImage": {"type": "string"},
+          "bannerImage": {"type": "string"},
+          "facebook": {"type": "string"},
+          "instagram": {"type": "string"},
+          "twitter": {"type": "string"},
+          "youtube": {"type": "string"},
+          "keywords": {"type": "string"},
+          "metaTitle": {"type": "string"},
+          "metaDesc": {"type": "string"},
+          "businessHours": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "day": {"type": "string"},
+                "open": {"type": "string"},
+                "close": {"type": "string"},
+                "closed": {"type": "boolean"}
+              }
+            }
+          },
+          "ownerId": {"type": "string", "format": "uuid"},
+          "status": {"type": "string", "enum": ["pending", "active", "inactive", "banned", "deleted"]}
+        }
+      },
+      "StoreUpdateRequest": {
+        "type": "object",
+        "properties": {
+          "name": {"type": "string"},
+          "tagline": {"type": "string"},
+          "description": {"type": "string"},
+          "email": {"type": "string", "format": "email"},
+          "phone": {"type": "string"},
+          "address": {"type": "string"},
+          "website": {"type": "string"},
+          "logo": {"type": "string"},
+          "banner": {"type": "string"},
+          "profileImage": {"type": "string"},
+          "bannerImage": {"type": "string"},
+          "facebook": {"type": "string"},
+          "instagram": {"type": "string"},
+          "twitter": {"type": "string"},
+          "youtube": {"type": "string"},
+          "keywords": {"type": "string"},
+          "metaTitle": {"type": "string"},
+          "metaDesc": {"type": "string"},
+          "businessHours": {"type": "array", "items": {"type": "object"}},
+          "status": {"type": "string", "enum": ["pending", "active", "inactive", "banned", "deleted"]}
+        }
+      },
+      "StoreStatusRequest": {
+        "type": "object",
+        "required": ["status"],
+        "properties": {
+          "status": {"type": "string", "enum": ["pending", "active", "inactive", "banned", "deleted"]}
+        }
+      },
+      "StoreImagesRequest": {
+        "type": "object",
+        "properties": {
+          "logo": {"type": "string"},
+          "banner": {"type": "string"}
+        }
+      },
+      "PaginationMeta": {
+        "type": "object",
+        "properties": {
+          "page": {"type": "integer", "example": 1},
+          "limit": {"type": "integer", "example": 10},
+          "total": {"type": "integer", "example": 12},
+          "totalPages": {"type": "integer", "example": 2},
+          "next": {"type": "boolean", "example": true},
+          "prev": {"type": "boolean", "example": false}
+        }
+      },
+      "MessageResponse": {
+        "type": "object",
+        "properties": {
+          "success": {"type": "boolean", "example": true},
+          "message": {"type": "string", "example": "Operación exitosa"}
+        }
+      }
+    }
+  }
+}

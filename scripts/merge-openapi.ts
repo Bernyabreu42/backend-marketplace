@@ -1,10 +1,21 @@
 import fs from "node:fs";
 const files = [
   "src/openapi/base.json",
+  "src/openapi/blog.json",
   "src/openapi/auth.json",
   "src/openapi/user.json",
   "src/openapi/upload.json",
-  // agrega más módulos aquí...
+  "src/openapi/products.json",
+  "src/openapi/reviews.json",
+  "src/openapi/category.json",
+  "src/openapi/stores.json",
+  "src/openapi/taxes.json",
+  "src/openapi/discounts.json",
+  "src/openapi/shipping.json",
+  "src/openapi/promotions.json",
+  "src/openapi/loyalty.json",
+  "src/openapi/orders.json",
+  "src/openapi/dashboard.json",
 ];
 
 const deepMerge = (a: any, b: any) => {
@@ -13,7 +24,6 @@ const deepMerge = (a: any, b: any) => {
     if (v && typeof v === "object" && !Array.isArray(v)) {
       out[k] = deepMerge(a?.[k] ?? {}, v);
     } else if (Array.isArray(v) && Array.isArray(a?.[k])) {
-      // merge de tags únicos por nombre
       if (k === "tags") {
         const byName = new Map<string, any>(a[k].map((t: any) => [t.name, t]));
         v.forEach((t: any) =>
@@ -36,7 +46,6 @@ let result: any = {
 };
 for (const f of files) {
   const doc = JSON.parse(fs.readFileSync(f, "utf8"));
-  // toma info/servers/tags si no existen
   if (!result.info && doc.info) result.info = doc.info;
   if (!result.servers && doc.servers) result.servers = doc.servers;
   result.paths = { ...result.paths, ...(doc.paths ?? {}) };
@@ -46,4 +55,4 @@ for (const f of files) {
     result.tags = deepMerge({ tags: result.tags }, { tags: doc.tags }).tags;
 }
 fs.writeFileSync("src/openapi.json", JSON.stringify(result, null, 2));
-console.log("✅ Generado src/openapi.json");
+console.log("📘 Generado src/openapi.json");

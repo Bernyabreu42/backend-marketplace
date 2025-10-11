@@ -3,17 +3,75 @@ import { ApiResponse } from "../../core/responses/ApiResponse";
 import prisma from "../../database/prisma";
 import { ApiPaginatedResponse } from "../../core/responses/ApiPaginatedResponse";
 import { paginate } from "../../utils/pagination";
-import { IdSchema, ProductSchema, UpdateProductSchema } from "./validated";
+import { IdSchema, ProductSchema, UpdateProductSchema } from "./validator";
 import { z } from "zod";
 import { andWhere, buildWhere } from "../../utils";
 import { deleteImage } from "../../core/services/image-service";
+import { verifyAccessToken } from "../../utils/jwt";
+import { RolesEnum } from "../../core/enums";
+
+type RequesterContext = {
+  id: string;
+  role: RolesEnum;
+};
+
+const hasStoreVisibility = (
+  requester: RequesterContext | null,
+  ownerId?: string | null
+) => {
+  if (!requester) return false;
+  if (ownerId && requester.id === ownerId) return true;
+  return (
+    requester.role === RolesEnum.ADMIN || requester.role === RolesEnum.SUPPORT
+  );
+};
+
+const resolveRequester = async (
+  req: Request
+): Promise<RequesterContext | null> => {
+  if (req.user?.id && req.user?.role) {
+    return {
+      id: req.user.id,
+      role: req.user.role as RolesEnum,
+    };
+  }
+
+  const accessToken = req.cookies?.accessToken;
+  if (!accessToken) return null;
+
+  try {
+    const payload = verifyAccessToken(accessToken) as {
+      sub?: string;
+      id?: string;
+    };
+    const userId = payload?.sub ?? payload?.id;
+    if (!userId) return null;
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, role: true },
+    });
+
+    if (!user) return null;
+
+    return {
+      id: user.id,
+      role: user.role as RolesEnum,
+    };
+  } catch {
+    return null;
+  }
+};
 
 export const getAllProducts = async (req: Request, res: Response) => {
   try {
     const result = await paginate({
       model: prisma.product,
       query: req.query,
-      where: buildWhere("product", req.query),
+      where: andWhere(
+        { store: { status: "active", isDeleted: false } },
+        buildWhere("product", req.query)
+      ),
       include: {
         categories: {
           select: {
@@ -66,9 +124,14 @@ export const getProductById = async (req: Request, res: Response) => {
   }
 
   try {
+    const requester = await resolveRequester(req);
+
     const product = await prisma.product.findUnique({
       where: { id },
       include: {
+        store: {
+          select: { status: true, isDeleted: true, ownerId: true },
+        },
         categories: {
           select: {
             id: true,
@@ -99,8 +162,29 @@ export const getProductById = async (req: Request, res: Response) => {
       return;
     }
 
+    const storeMeta = product.store;
+
+    if (!storeMeta || storeMeta.isDeleted) {
+      res
+        .status(404)
+        .json(ApiResponse.error({ message: "Producto no disponible" }));
+      return;
+    }
+
+    const canViewInactive =
+      storeMeta.status === "active" ||
+      hasStoreVisibility(requester, storeMeta.ownerId);
+
+    if (!canViewInactive) {
+      res
+        .status(404)
+        .json(ApiResponse.error({ message: "Producto no disponible" }));
+      return;
+    }
+
     const taxes = product.taxes.map((t) => t.tax);
-    const data = { ...product, taxes };
+    const { store: _store, ...productData } = product;
+    const data = { ...productData, taxes };
 
     res.json(
       ApiResponse.success({
@@ -127,11 +211,43 @@ export const getProductByStore = async (req: Request, res: Response) => {
   }
 
   try {
+    const requester = await resolveRequester(req);
+
+    const store = await prisma.store.findUnique({
+      where: { id: storeId },
+      select: { id: true, ownerId: true, status: true, isDeleted: true },
+    });
+
+    if (!store || store.isDeleted) {
+      res
+        .status(404)
+        .json(ApiResponse.error({ message: "Tienda no disponible" }));
+      return;
+    }
+
+    const canViewInactive =
+      store.status === "active" ||
+      hasStoreVisibility(requester, store.ownerId);
+
+    if (!canViewInactive) {
+      res
+        .status(404)
+        .json(ApiResponse.error({ message: "Tienda no disponible" }));
+      return;
+    }
+
+    const baseFilter = hasStoreVisibility(requester, store.ownerId)
+      ? { storeId }
+      : { storeId, store: { status: "active", isDeleted: false } };
+
     const products = await paginate({
       model: prisma.product,
       query: req.query,
       orderBy: { createdAt: "desc" },
-      where: andWhere({ storeId }, buildWhere("product", req.query)),
+      where: andWhere(
+        baseFilter,
+        buildWhere("product", req.query)
+      ),
       include: {
         categories: {
           select: {
@@ -157,7 +273,6 @@ export const getProductByStore = async (req: Request, res: Response) => {
 export const createProduct = async (req: Request, res: Response) => {
   try {
     const parsed = ProductSchema.safeParse(req.body);
-    console.log(parsed);
 
     if (!parsed.success) {
       res.status(400).json(
@@ -170,7 +285,7 @@ export const createProduct = async (req: Request, res: Response) => {
       return;
     }
 
-    const { categories = [], taxes = [], ...data } = parsed.data;
+    const { categories = [], taxes = [], discountId, ...data } = parsed.data;
 
     // Validar tienda y ownership
     const store = await prisma.store.findUnique({
@@ -183,7 +298,7 @@ export const createProduct = async (req: Request, res: Response) => {
       return;
     }
 
-    if (store.ownerId !== req.user.id) {
+    if (store.ownerId !== req?.user.id) {
       res
         .status(403)
         .json(
@@ -192,10 +307,29 @@ export const createProduct = async (req: Request, res: Response) => {
       return;
     }
 
+    // --- LÓGICA DE CÁLCULO DE PRECIO ---
+    let finalPrice = data.price;
+    if (discountId) {
+      const discount = await prisma.discount.findUnique({
+        where: { id: discountId },
+      });
+      if (discount) {
+        const basePrice = data.price;
+        if (discount.type === "percentage") {
+          finalPrice = basePrice - (basePrice * discount.value) / 100;
+        } else if (discount.type === "fixed") {
+          finalPrice = basePrice - discount.value;
+        }
+      }
+    }
+    // --- FIN DE LA LÓGICA ---
+
     // Crear producto + relaciones (categorías M:N y taxes vía tabla puente)
     const product = await prisma.product.create({
       data: {
         ...data,
+        priceFinal: finalPrice,
+        discountId: discountId,
         ...(categories.length
           ? {
               categories: {
@@ -345,12 +479,14 @@ export const updateProduct = async (req: Request, res: Response) => {
   // Desestructura UNA vez
   const {
     categories: categoryIds = [],
-    taxes: taxIds = [],
+    taxes: taxIds, // No lo usamos para el precio final, sino en la orden
+    discountId, // <-- ¡NUEVO! Recibimos el ID del descuento
     sku,
     ...rest
   } = parsed.data as {
     categories?: string[];
-    taxes?: string[];
+    taxes?: string[]; // Mantener para la relación
+    discountId?: string | null; // Puede ser nulo para quitar el descuento
     sku?: string | null;
     [k: string]: any;
   };
@@ -364,10 +500,35 @@ export const updateProduct = async (req: Request, res: Response) => {
   );
 
   try {
+    // --- NUEVA LÓGICA DE CÁLCULO DE PRECIO ---
+    let finalPrice = parsed.data.price ?? existing.price; // Usa el precio nuevo o el existente como base
+    let finalDiscountId =
+      discountId === undefined ? existing.discountId : discountId;
+
+    if (finalDiscountId) {
+      const discount = await prisma.discount.findUnique({
+        where: { id: finalDiscountId },
+      });
+      if (discount) {
+        const basePrice = parsed.data.price ?? existing.price;
+        if (discount.type === "percentage") {
+          finalPrice = basePrice - (basePrice * discount.value) / 100;
+        } else if (discount.type === "fixed") {
+          finalPrice = basePrice - discount.value;
+        }
+      }
+    } else {
+      // Si no hay promotionId, el precio final es el precio base
+      finalPrice = parsed.data.price ?? existing.price;
+    }
+    // --- FIN DE LA LÓGICA ---
+
     const updated = await prisma.$transaction(async (tx) => {
       const payload: any = {
         ...rest,
         sku: typeof sku === "string" && sku.trim() === "" ? null : sku ?? null,
+        priceFinal: finalPrice, // <-- Usamos el precio calculado
+        discountId: finalDiscountId, // <-- Guardamos la referencia al descuento
       };
 
       // reemplaza categorías (si te mandan array)
@@ -379,7 +540,7 @@ export const updateProduct = async (req: Request, res: Response) => {
       await tx.product.update({ where: { id }, data: payload });
 
       // taxes por tabla puente
-      if (Array.isArray(taxIds)) {
+      if (taxIds && Array.isArray(taxIds)) {
         await tx.productTax.deleteMany({ where: { productId: id } });
         if (taxIds.length) {
           await tx.productTax.createMany({
@@ -390,7 +551,8 @@ export const updateProduct = async (req: Request, res: Response) => {
       }
 
       // devolver producto
-      tx.product.findUnique({
+      return tx.product.findUnique({
+        // <-- Añadir return para que la transacción devuelva el producto
         where: { id },
         include: {
           categories: true,
@@ -485,10 +647,16 @@ export const getRelatedProducts = async (req: Request, res: Response) => {
   }
 
   try {
+    const requester = await resolveRequester(req);
+
     const product = await prisma.product.findUnique({
       where: { id },
       include: {
+        store: {
+          select: { status: true, isDeleted: true, ownerId: true },
+        },
         relatedProducts: {
+          where: { store: { status: "active", isDeleted: false } },
           orderBy: { createdAt: "desc" },
         },
       },
@@ -498,6 +666,25 @@ export const getRelatedProducts = async (req: Request, res: Response) => {
       res
         .status(404)
         .json(ApiResponse.error({ message: "Producto no encontrado" }));
+      return;
+    }
+
+    const store = product.store;
+
+    if (!store || store.isDeleted) {
+      res
+        .status(404)
+        .json(ApiResponse.error({ message: "Producto no disponible" }));
+      return;
+    }
+
+    const canViewInactive =
+      store.status === "active" || hasStoreVisibility(requester, store.ownerId);
+
+    if (!canViewInactive) {
+      res
+        .status(404)
+        .json(ApiResponse.error({ message: "Producto no disponible" }));
       return;
     }
 

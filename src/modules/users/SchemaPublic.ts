@@ -17,3 +17,4 @@ export const userPublicSelect = {
   profileImage: true,
   store: { select: { id: true, name: true } },
 } as const;
+

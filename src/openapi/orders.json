@@ -1,0 +1,360 @@
+{
+  "tags": [
+    {
+      "name": "Orders",
+      "description": "Operaciones para gestionar ordenes y compras"
+    }
+  ],
+  "paths": {
+    "/api/orders": {
+      "get": {
+        "tags": ["Orders"],
+        "summary": "Listar ordenes",
+        "security": [{"basicAuth": [], "accessCookie": []}],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {"type": "integer", "minimum": 1, "default": 1}
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {"type": "integer", "minimum": 1, "maximum": 100, "default": 10}
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {"type": "string", "enum": ["pending", "processing", "paid", "shipped", "completed", "cancelled"]}
+          },
+          {
+            "name": "storeId",
+            "in": "query",
+            "schema": {"type": "string", "format": "uuid"}
+          },
+          {
+            "name": "userId",
+            "in": "query",
+            "schema": {"type": "string", "format": "uuid"}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Listado paginado",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/OrderListResponse"}
+              }
+            }
+          },
+          "403": {"description": "No autorizado"}
+        }
+      },
+      "post": {
+        "tags": ["Orders"],
+        "summary": "Crear una orden",
+        "security": [{"basicAuth": [], "accessCookie": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {"$ref": "#/components/schemas/OrderCreateRequest"}
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Orden creada",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/OrderResponse"}
+              }
+            }
+          },
+          "400": {"description": "Datos invalidos"},
+          "401": {"description": "No autenticado"}
+        }
+      }
+    },
+    "/api/orders/my": {
+      "get": {
+        "tags": ["Orders"],
+        "summary": "Listar mis ordenes",
+        "security": [{"basicAuth": [], "accessCookie": []}],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {"type": "integer", "minimum": 1, "default": 1}
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {"type": "integer", "minimum": 1, "maximum": 100, "default": 10}
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {"type": "string", "enum": ["pending", "processing", "paid", "shipped", "completed", "cancelled"]}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Listado paginado",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/OrderListResponse"}
+              }
+            }
+          },
+          "401": {"description": "No autenticado"}
+        }
+      }
+    },
+    "/api/orders/store": {
+      "get": {
+        "tags": ["Orders"],
+        "summary": "Listar ordenes de la tienda del vendedor",
+        "security": [{"basicAuth": [], "accessCookie": []}],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {"type": "integer", "minimum": 1, "default": 1}
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {"type": "integer", "minimum": 1, "maximum": 100, "default": 10}
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {"type": "string", "enum": ["pending", "processing", "paid", "shipped", "completed", "cancelled"]}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Listado paginado",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/OrderListResponse"}
+              }
+            }
+          },
+          "400": {"description": "Datos invalidos"},
+          "403": {"description": "No autorizado"}
+        }
+      }
+    },
+    "/api/orders/{id}": {
+      "get": {
+        "tags": ["Orders"],
+        "summary": "Detalle de una orden",
+        "security": [{"basicAuth": [], "accessCookie": []}],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {"type": "string", "format": "uuid"}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Detalle de la orden",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/OrderResponse"}
+              }
+            }
+          },
+          "400": {"description": "Parametros invalidos"},
+          "401": {"description": "No autenticado"},
+          "403": {"description": "No autorizado"},
+          "404": {"description": "Orden no encontrada"}
+        }
+      }
+    },
+    "/api/orders/{id}/status": {
+      "patch": {
+        "tags": ["Orders"],
+        "summary": "Actualizar estado de la orden",
+        "security": [{"basicAuth": [], "accessCookie": []}],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {"type": "string", "format": "uuid"}
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {"$ref": "#/components/schemas/OrderStatusUpdateRequest"}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Estado actualizado",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/OrderResponse"}
+              }
+            }
+          },
+          "400": {"description": "Datos invalidos"},
+          "401": {"description": "No autenticado"},
+          "403": {"description": "No autorizado"},
+          "404": {"description": "Orden no encontrada"}
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "OrderItemProduct": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string", "format": "uuid"},
+          "name": {"type": "string"},
+          "price": {"type": "number"},
+          "priceFinal": {"type": "number"},
+          "images": {
+            "type": "array",
+            "items": {"type": "string"}
+          }
+        }
+      },
+      "OrderItem": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string", "format": "uuid"},
+          "orderId": {"type": "string", "format": "uuid"},
+          "productId": {"type": "string", "format": "uuid"},
+          "quantity": {"type": "integer"},
+          "unitPrice": {"type": "number"},
+          "unitPriceFinal": {"type": "number"},
+          "lineSubtotal": {"type": "number"},
+          "lineDiscount": {"type": "number"},
+          "product": {"$ref": "#/components/schemas/OrderItemProduct"}
+        }
+      },
+      "OrderStore": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string", "format": "uuid"},
+          "name": {"type": "string"},
+          "ownerId": {"type": ["string", "null"], "format": "uuid"}
+        }
+      },
+      "OrderUser": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string", "format": "uuid"},
+          "firstName": {"type": "string"},
+          "lastName": {"type": "string"},
+          "email": {"type": "string", "format": "email"}
+        }
+      },
+      "Order": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string", "format": "uuid"},
+          "userId": {"type": "string", "format": "uuid"},
+          "storeId": {"type": "string", "format": "uuid"},
+          "promotionId": {"type": ["string", "null"], "format": "uuid"},
+          "discountId": {"type": ["string", "null"], "format": "uuid"},
+          "subtotal": {"type": "number"},
+          "totalDiscountAmount": {"type": "number"},
+          "taxAmount": {"type": "number"},
+          "shippingAmount": {"type": "number"},
+          "total": {"type": "number"},
+          "shippingMethod": {"type": ["string", "null"]},
+          "shippingAddress": {"type": ["object", "null"]},
+          "trackingNumber": {"type": ["string", "null"]},
+          "promotionCodeUsed": {"type": ["string", "null"]},
+          "priceAdjustments": {
+            "type": ["array", "null"],
+            "items": {"$ref": "#/components/schemas/OrderPriceAdjustment"}
+          },
+          "status": {"type": "string"},
+          "createdAt": {"type": "string", "format": "date-time"},
+          "updatedAt": {"type": "string", "format": "date-time"},
+          "items": {
+            "type": "array",
+            "items": {"$ref": "#/components/schemas/OrderItem"}
+          },
+          "store": {"$ref": "#/components/schemas/OrderStore"},
+          "user": {"$ref": "#/components/schemas/OrderUser"}
+        }
+      },
+      "OrderPriceAdjustment": {
+        "type": "object",
+        "properties": {
+          "type": {"type": "string"},
+          "code": {"type": ["string", "null"]},
+          "name": {"type": ["string", "null"]},
+          "amount": {"type": "number"}
+        }
+      },
+      "OrderCreateItem": {
+        "type": "object",
+        "required": ["productId", "quantity"],
+        "properties": {
+          "productId": {"type": "string", "format": "uuid"},
+          "quantity": {"type": "integer", "minimum": 1}
+        }
+      },
+      "OrderCreateRequest": {
+        "type": "object",
+        "required": ["storeId", "items"],
+        "properties": {
+          "storeId": {"type": "string", "format": "uuid"},
+          "userId": {"type": "string", "format": "uuid"},
+          "promotionCode": {"type": "string"},
+          "shippingMethod": {"type": "string"},
+          "shippingAddress": {"type": "object"},
+          "items": {
+            "type": "array",
+            "minItems": 1,
+            "items": {"$ref": "#/components/schemas/OrderCreateItem"}
+          }
+        }
+      },
+      "OrderStatusUpdateRequest": {
+        "type": "object",
+        "required": ["status"],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["pending", "processing", "paid", "shipped", "completed", "cancelled"]
+          }
+        }
+      },
+      "OrderResponse": {
+        "type": "object",
+        "properties": {
+          "success": {"type": "boolean"},
+          "message": {"type": "string"},
+          "data": {"$ref": "#/components/schemas/Order"}
+        }
+      },
+      "OrderListResponse": {
+        "type": "object",
+        "properties": {
+          "success": {"type": "boolean"},
+          "message": {"type": "string"},
+          "data": {
+            "type": "array",
+            "items": {"$ref": "#/components/schemas/Order"}
+          },
+          "pagination": {"$ref": "#/components/schemas/PaginationMeta"}
+        }
+      }
+    }
+  }
+}

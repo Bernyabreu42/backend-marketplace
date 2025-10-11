@@ -6,11 +6,46 @@ import { paginate } from "../../utils/pagination";
 import { ApiPaginatedResponse } from "../../core/responses/ApiPaginatedResponse";
 import { deleteImage } from "../../core/services/image-service";
 import { updateStoreSchema } from "../../core/validations/stores";
-import { userPublicSelect } from "../users/SchemaPublic";
-import { validateCreateStore } from "./validated";
+import { validateCreateStore } from "./validator";
 import { ownerPublicSelect, storePublicSelect } from "./storePublicSelect";
-import { IdSchema } from "../products/validated";
-import { andWhere, buildWhere, stripUndef } from "../../utils";
+import { IdSchema } from "../products/validator";
+import { andWhere, buildWhere } from "../../utils";
+import { notifyStoreCreated, notifyStoreStatusChange } from "../../core/services/storeNotificationService";
+
+const mapStoreMetrics = (store: any) => {
+  const { reviews = [], orders = [], ...rest } = store;
+  const ratingsCount = reviews.length;
+  const ratingAverage = ratingsCount
+    ? Number(
+        (
+          reviews.reduce(
+            (acc: number, review: { rating: number }) => acc + review.rating,
+            0
+          ) / ratingsCount
+        ).toFixed(2)
+      )
+    : null;
+  const salesCount = orders.length;
+
+  return {
+    ...rest,
+    metrics: {
+      ratingAverage,
+      ratingsCount,
+      salesCount,
+    },
+  };
+};
+
+const sortStoresByMetrics = (
+  a: ReturnType<typeof mapStoreMetrics>,
+  b: ReturnType<typeof mapStoreMetrics>
+) => {
+  const ratingA = a.metrics.ratingAverage ?? 0;
+  const ratingB = b.metrics.ratingAverage ?? 0;
+  if (ratingA !== ratingB) return ratingB - ratingA;
+  return b.metrics.salesCount - a.metrics.salesCount;
+};
 
 export const createStore = async (req: Request, res: Response) => {
   // req.user debe venir del middleware de auth
@@ -20,7 +55,6 @@ export const createStore = async (req: Request, res: Response) => {
   }
 
   const { id, role } = req.user;
-  console.log({ id, role });
 
   // 1) Validación + normalización
   const parsed = validateCreateStore(req.body);
@@ -35,7 +69,7 @@ export const createStore = async (req: Request, res: Response) => {
   const data = parsed.data;
 
   // 2) Determinar ownerId (si no eres admin, siempre el actor)
-  const isAdmin = role === "admin";
+  const isAdmin = role === RolesEnum.ADMIN;
   const ownerId = isAdmin && data.ownerId ? data.ownerId : id;
 
   try {
@@ -63,7 +97,12 @@ export const createStore = async (req: Request, res: Response) => {
     // 5) Si el dueño era buyer, promuévelo a seller (no cambies admin/support)
     const owner = await prisma.user.findUnique({
       where: { id: ownerId },
-      select: { role: true },
+      select: {
+        role: true,
+        email: true,
+        firstName: true,
+        username: true,
+      },
     });
 
     if (owner?.role === RolesEnum.BUYER) {
@@ -72,6 +111,15 @@ export const createStore = async (req: Request, res: Response) => {
         data: { role: RolesEnum.SELLER },
       });
     }
+
+    notifyStoreCreated({
+      to: owner?.email,
+      firstName: owner?.firstName,
+      fallbackName: owner?.username ?? store.name,
+      storeName: store.name ?? "Tu tienda",
+    }).catch((error) =>
+      console.error("[mail] Error al notificar creación de tienda", error)
+    );
 
     res
       .status(201)
@@ -128,6 +176,170 @@ export const getStore = async (req: Request, res: Response) => {
       ApiResponse.error({
         message: "Error al obtener tienda",
         error: error?.message ?? String(error),
+      })
+    );
+  }
+};
+
+export const getFeaturedStores = async (_req: Request, res: Response) => {
+  try {
+    const baseWhere = {
+      isDeleted: false,
+      status: "active" as const,
+    };
+
+    const selection = {
+      ...storePublicSelect,
+      reviews: { select: { rating: true } },
+      orders: {
+        where: { status: "completed" },
+        select: {
+          id: true,
+          items: { select: { productId: true, quantity: true } },
+        },
+      },
+    } as const;
+
+    const now = new Date();
+    const featuredRaw = await prisma.store.findMany({
+      where: {
+        ...baseWhere,
+        isFeatured: true,
+        OR: [{ featuredUntil: null }, { featuredUntil: { gte: now } }],
+      },
+      take: 10,
+      select: selection,
+    });
+
+    const computeBestSellerIds = (store: (typeof featuredRaw)[number]) => {
+      const productSales = new Map<string, number>();
+
+      for (const order of store.orders ?? []) {
+        for (const item of order.items ?? []) {
+          const key = item.productId;
+          const qty = Number(item.quantity ?? 0);
+          if (!key || Number.isNaN(qty) || qty <= 0) continue;
+          productSales.set(key, (productSales.get(key) ?? 0) + qty);
+        }
+      }
+
+      return Array.from(productSales.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3)
+        .map(([productId]) => productId);
+    };
+
+    const fetchProductSummaries = async (productIds: string[]) => {
+      if (productIds.length === 0) return [];
+      const products = await prisma.product.findMany({
+        where: { id: { in: productIds } },
+        select: {
+          id: true,
+          name: true,
+          price: true,
+          priceFinal: true,
+          images: true,
+        },
+      });
+      const byId = new Map(products.map((product) => [product.id, product]));
+      return productIds
+        .map((id) => byId.get(id))
+        .filter((product): product is (typeof products)[number] =>
+          Boolean(product)
+        );
+    };
+
+    const fetchLatestProducts = async (
+      storeId: string,
+      excludeIds: string[],
+      limit: number
+    ) => {
+      if (limit <= 0) return [];
+      const products = await prisma.product.findMany({
+        where: {
+          storeId,
+          id: excludeIds.length ? { notIn: excludeIds } : undefined,
+        },
+        orderBy: { createdAt: "desc" },
+        take: limit,
+        select: {
+          id: true,
+          name: true,
+          price: true,
+          priceFinal: true,
+          images: true,
+        },
+      });
+      return products;
+    };
+
+    const buildFeaturedPayload = async (stores: typeof featuredRaw) => {
+      const prepared = stores
+        .map((store) => ({
+          raw: store,
+          metrics: mapStoreMetrics(store),
+        }))
+        .sort((a, b) => sortStoresByMetrics(a.metrics, b.metrics));
+
+      const enriched = await Promise.all(
+        prepared.map(async ({ raw, metrics }) => {
+          const bestsellerIds = computeBestSellerIds(raw);
+          const bestsellingProducts = await fetchProductSummaries(
+            bestsellerIds
+          );
+          const missingSlots = Math.max(0, 3 - bestsellingProducts.length);
+          const fallbackProducts = await fetchLatestProducts(
+            raw.id,
+            bestsellerIds,
+            missingSlots
+          );
+
+          const combined = [...bestsellingProducts, ...fallbackProducts].slice(
+            0,
+            3
+          );
+
+          return {
+            ...metrics,
+            topProducts: combined,
+          };
+        })
+      );
+
+      return enriched;
+    };
+
+    if (featuredRaw.length > 0) {
+      const data = await buildFeaturedPayload(featuredRaw);
+      res.json(
+        ApiResponse.success({
+          data,
+          message: "Tiendas destacadas",
+        })
+      );
+      return;
+    }
+
+    const fallbackRaw = await prisma.store.findMany({
+      where: baseWhere,
+      take: 10,
+      select: selection,
+    });
+
+    const data = await buildFeaturedPayload(fallbackRaw);
+
+    res.json(
+      ApiResponse.success({
+        data,
+        message:
+          "Tiendas destacadas no disponibles, mostrando las mejor valoradas",
+      })
+    );
+  } catch (error) {
+    res.status(500).json(
+      ApiResponse.error({
+        message: "Error al obtener tiendas destacadas",
+        error,
       })
     );
   }
@@ -256,6 +468,26 @@ export const updateStoreStatus = async (req: Request, res: Response) => {
     const store = await prisma.store.update({
       where: { id: storeId },
       data: { status },
+      include: {
+        owner: {
+          select: {
+            email: true,
+            firstName: true,
+            username: true,
+          },
+        },
+      },
+    });
+
+    // Notify owner without blocking the response
+    notifyStoreStatusChange({
+      to: store.owner.email,
+      firstName: store.owner.firstName,
+      fallbackName: store.owner.username,
+      storeName: store.name,
+      status: store.status,
+    }).catch((err) => {
+      console.error("[MAIL_ERROR] Failed to send status change email:", err);
     });
 
     res.json(
@@ -264,12 +496,19 @@ export const updateStoreStatus = async (req: Request, res: Response) => {
         message: "Estado de la tienda actualizado correctamente",
       })
     );
-    return;
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.code === 'P2025') {
+      res.status(404).json(
+       ApiResponse.error({
+         message: "La tienda no fue encontrada.",
+       })
+     );
+     return;
+   }
     res.status(500).json(
       ApiResponse.error({
         message: "Error al actualizar el estado de la tienda",
-        error,
+        error: error?.message ?? String(error),
       })
     );
   }
@@ -280,22 +519,41 @@ export const deleteStore = async (req: Request, res: Response) => {
   const { storeId } = req.params;
 
   try {
-    const store = await prisma.store.update({
-      where: { id: storeId },
-      data: { isDeleted: true },
+    const result = await prisma.$transaction(async (tx) => {
+      const store = await tx.store.update({
+        where: { id: storeId, isDeleted: false },
+        data: { isDeleted: true, status: "deleted" },
+      });
+
+      const updatedUser = await tx.user.update({
+        where: { id: store.ownerId },
+        data: { role: RolesEnum.BUYER },
+      });
+
+      return { store, updatedUser };
     });
 
     res.json(
       ApiResponse.success({
-        data: store,
-        message: "La tienda ha sido eliminada (soft delete)",
+        data: result.store,
+        message:
+          "La tienda ha sido eliminada y el rol del propietario ha sido actualizado a comprador.",
       })
     );
-  } catch (error) {
+  } catch (error: any) {
+    // Handle Prisma's not-found error specifically
+    if (error?.code === "P2025") {
+      res.status(404).json(
+        ApiResponse.error({
+          message: "La tienda no fue encontrada o ya ha sido eliminada.",
+        })
+      );
+      return;
+    }
     res.status(500).json(
       ApiResponse.error({
         message: "Error al eliminar la tienda",
-        error,
+        error: error?.message ?? String(error),
       })
     );
   }
@@ -315,7 +573,7 @@ export const uploadStoreImages = async (req: Request, res: Response) => {
 
   try {
     const existingUser = await prisma.user.findUnique({
-      where: { id: user.id },
+      where: { id: user?.id },
       include: { store: true },
     });
 
@@ -345,7 +603,7 @@ export const uploadStoreImages = async (req: Request, res: Response) => {
     await prisma.store.update({
       where: {
         id: existingUser.store.id,
-        ownerId: user.id,
+        ownerId: user?.id,
       },
       data: updateData,
     });
@@ -369,5 +627,74 @@ export const uploadStoreImages = async (req: Request, res: Response) => {
       message: "Error inesperado al actualizar la imagen",
     });
     return;
+  }
+};
+
+//restaurar tienda
+export const restoreStore = async (req: Request, res: Response) => {
+  const { storeId } = req.params;
+  const { role } = req.user;
+
+  // Authorization: only admins can restore stores
+  if (role !== RolesEnum.ADMIN) {
+    res.status(403).json(
+      ApiResponse.error({
+        message:
+          "Acción no autorizada. Solo los administradores pueden restaurar tiendas.",
+      })
+    );
+    return;
+  }
+
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      const store = await tx.store.findUnique({
+        where: { id: storeId },
+        select: { ownerId: true, isDeleted: true },
+      });
+
+      if (!store || !store.isDeleted) {
+        // This will cause the transaction to rollback
+        throw new Error("La tienda no fue encontrada o no ha sido eliminada.");
+      }
+
+      const restoredStore = await tx.store.update({
+        where: { id: storeId },
+        data: { isDeleted: false, status: "inactive" },
+      });
+
+      const owner = await tx.user.findUnique({ where: { id: store.ownerId } });
+
+      // Only promote to seller if they are currently a buyer
+      if (owner?.role === RolesEnum.BUYER) {
+        await tx.user.update({
+          where: { id: store.ownerId },
+          data: { role: RolesEnum.SELLER },
+        });
+      }
+
+      return { store: restoredStore };
+    });
+
+    res.json(
+      ApiResponse.success({
+        data: result.store,
+        message:
+          "La tienda ha sido restaurada y el rol del propietario ha sido actualizado a vendedor si era necesario.",
+      })
+    );
+  } catch (error: any) {
+    if (
+      error.message === "La tienda no fue encontrada o no ha sido eliminada."
+    ) {
+      res.status(404).json(ApiResponse.error({ message: error.message }));
+      return;
+    }
+    res.status(500).json(
+      ApiResponse.error({
+        message: "Error al restaurar la tienda",
+        error: error?.message ?? String(error),
+      })
+    );
   }
 };

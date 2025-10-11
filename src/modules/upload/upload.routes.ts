@@ -10,3 +10,4 @@ router.post("/single", upload.single("image"), uploadSingle);
 router.post("/multiple", upload.array("images", 5), uploadMultiple);
 
 export default router;
+

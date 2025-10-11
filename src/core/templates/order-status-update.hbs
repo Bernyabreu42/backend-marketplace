@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Actualización de orden</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 32px 12px;
+        background-color: #f6f8fa;
+        color: #24292f;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial,
+          sans-serif;
+      }
+      .container {
+        max-width: 620px;
+        margin: 0 auto;
+      }
+      .card {
+        background: #ffffff;
+        border: 1px solid #d0d7de;
+        border-radius: 6px;
+        padding: 32px;
+      }
+      h1 {
+        margin: 0 0 16px;
+        font-size: 22px;
+        font-weight: 600;
+      }
+      p {
+        margin: 0 0 16px;
+        line-height: 1.5;
+      }
+      .status {
+        display: block;
+        margin: 20px 0;
+        padding: 16px;
+        border-radius: 6px;
+        background-color: #f1f8ff;
+        border: 1px solid #b6e3ff;
+        font-weight: 600;
+        text-align: center;
+      }
+      .button {
+        display: inline-block;
+        background-color: #0969da;
+        color: #ffffff !important;
+        text-decoration: none;
+        border-radius: 6px;
+        padding: 12px 24px;
+        font-weight: 600;
+      }
+      .footer {
+        margin-top: 24px;
+        font-size: 13px;
+        color: #57606a;
+        line-height: 1.6;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="card">
+        <h1>Actualizamos tu orden, <strong>{{customerName}}</strong></h1>
+        <p>
+          Queremos contarte que tu orden <strong>#{{orderCode}}</strong> cambió
+          de estado.
+        </p>
+        <span class="status">{{statusLabel}}</span>
+        {{#if statusMessage}}
+          <p>{{statusMessage}}</p>
+        {{/if}}
+        {{#if orderUrl}}
+          <p>Puedes revisar todos los detalles siguiendo este enlace:</p>
+          <p>
+            <a
+              class="button"
+              href="{{orderUrl}}"
+              target="_blank"
+              rel="noopener"
+            >
+              Ver mi orden
+            </a>
+          </p>
+        {{/if}}
+        <p>Si tienes preguntas, estamos disponibles para ayudarte.</p>
+        <p>Gracias por comprar con nosotros.</p>
+      </div>
+      <div class="footer">
+        Recibiste este correo porque estás siguiendo las actualizaciones de tu
+        orden. Si no reconoces esta actividad, ponte en contacto con el equipo de
+        soporte.
+      </div>
+    </div>
+  </body>
+</html>

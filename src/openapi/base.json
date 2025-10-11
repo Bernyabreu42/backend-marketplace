@@ -28,13 +28,29 @@
       "name": "Category"
     },
     {
+      "name": "Reviews"
+    },
+    {
       "name": "Orders"
     },
     {
       "name": "Taxes"
     },
     {
+      "name": "Discounts"
+    },
+    {
+      "name": "Promotions"
+    },
+    {
+      "name": "Shipping"
+    },
+    {
       "name": "Upload"
+    },
+
+    {
+      "name": "Blog"
     },
     {
       "name": "Sessions"

@@ -1,0 +1,222 @@
+{
+  "tags": [
+    {
+      "name": "Blog",
+      "description": "Entradas editoriales del marketplace"
+    }
+  ],
+  "paths": {
+    "/api/blog": {
+      "get": {
+        "tags": ["Blog"],
+        "summary": "Listar entradas publicadas",
+        "parameters": [
+          {"name": "page", "in": "query", "schema": {"type": "integer", "minimum": 1, "default": 1}},
+          {"name": "limit", "in": "query", "schema": {"type": "integer", "minimum": 1, "maximum": 100, "default": 10}},
+          {"name": "status", "in": "query", "schema": {"type": "string", "enum": ["draft", "published", "archived"]}},
+          {"name": "tag", "in": "query", "schema": {"type": "string"}},
+          {"name": "search", "in": "query", "schema": {"type": "string"}}
+        ],
+        "responses": {
+          "200": {
+            "description": "Listado paginado",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/BlogPostListResponse"}
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Blog"],
+        "summary": "Crear entrada",
+        "security": [{"basicAuth": [], "accessCookie": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {"$ref": "#/components/schemas/BlogPostCreateRequest"}
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Entrada creada",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/BlogPostResponse"}
+              }
+            }
+          },
+          "400": {"description": "Datos invalidos"},
+          "403": {"description": "No autorizado"}
+        }
+      }
+    },
+    "/api/blog/{slug}": {
+      "get": {
+        "tags": ["Blog"],
+        "summary": "Detalle por slug",
+        "parameters": [
+          {"name": "slug", "in": "path", "required": true, "schema": {"type": "string"}}
+        ],
+        "responses": {
+          "200": {
+            "description": "Entrada",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/BlogPostResponse"}
+              }
+            }
+          },
+          "404": {"description": "No encontrada"}
+        }
+      }
+    },
+    "/api/blog/{id}": {
+      "patch": {
+        "tags": ["Blog"],
+        "summary": "Actualizar entrada",
+        "security": [{"basicAuth": [], "accessCookie": []}],
+        "parameters": [
+          {"name": "id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}}
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {"$ref": "#/components/schemas/BlogPostUpdateRequest"}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Entrada actualizada",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/BlogPostResponse"}
+              }
+            }
+          },
+          "400": {"description": "Datos invalidos"},
+          "403": {"description": "No autorizado"},
+          "404": {"description": "No encontrada"}
+        }
+      },
+      "delete": {
+        "tags": ["Blog"],
+        "summary": "Eliminar entrada",
+        "security": [{"basicAuth": [], "accessCookie": []}],
+        "parameters": [
+          {"name": "id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}}
+        ],
+        "responses": {
+          "200": {
+            "description": "Entrada eliminada",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/BlogPostDeleteResponse"}
+              }
+            }
+          },
+          "403": {"description": "No autorizado"},
+          "404": {"description": "No encontrada"}
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "BlogAuthor": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string", "format": "uuid"},
+          "displayName": {"type": "string", "nullable": true},
+          "firstName": {"type": "string", "nullable": true},
+          "lastName": {"type": "string", "nullable": true},
+          "email": {"type": "string", "format": "email"}
+        }
+      },
+      "BlogPost": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string", "format": "uuid"},
+          "title": {"type": "string"},
+          "slug": {"type": "string"},
+          "excerpt": {"type": "string", "nullable": true},
+          "content": {"type": "string"},
+          "coverImage": {"type": "string", "nullable": true},
+          "status": {"type": "string", "enum": ["draft", "published", "archived"]},
+          "tags": {"type": "array", "items": {"type": "string"}},
+          "publishedAt": {"type": "string", "format": "date-time", "nullable": true},
+          "createdAt": {"type": "string", "format": "date-time"},
+          "updatedAt": {"type": "string", "format": "date-time"},
+          "author": {"$ref": "#/components/schemas/BlogAuthor"}
+        }
+      },
+      "BlogPostCreateRequest": {
+        "type": "object",
+        "required": ["title", "content"],
+        "properties": {
+          "title": {"type": "string"},
+          "excerpt": {"type": "string"},
+          "content": {"type": "string"},
+          "coverImage": {"type": "string"},
+          "status": {"type": "string", "enum": ["draft", "published", "archived"]},
+          "tags": {"type": "array", "items": {"type": "string"}},
+          "publishedAt": {"type": "string", "format": "date-time"}
+        }
+      },
+      "BlogPostUpdateRequest": {
+        "type": "object",
+        "properties": {
+          "title": {"type": "string"},
+          "excerpt": {"type": "string"},
+          "content": {"type": "string"},
+          "coverImage": {"type": "string"},
+          "status": {"type": "string", "enum": ["draft", "published", "archived"]},
+          "tags": {"type": "array", "items": {"type": "string"}},
+          "publishedAt": {"type": "string", "format": "date-time"}
+        }
+      },
+      "BlogPostResponse": {
+        "type": "object",
+        "properties": {
+          "success": {"type": "boolean"},
+          "message": {"type": "string"},
+          "data": {"$ref": "#/components/schemas/BlogPost"}
+        }
+      },
+      "BlogPostListResponse": {
+        "type": "object",
+        "properties": {
+          "success": {"type": "boolean"},
+          "message": {"type": "string"},
+          "data": {
+            "type": "array",
+            "items": {"$ref": "#/components/schemas/BlogPost"}
+          },
+          "pagination": {
+            "type": "object",
+            "properties": {
+              "total": {"type": "integer"},
+              "page": {"type": "integer"},
+              "limit": {"type": "integer"},
+              "totalPages": {"type": "integer"},
+              "next": {"type": "boolean"},
+              "prev": {"type": "boolean"}
+            }
+          }
+        }
+      },
+      "BlogPostDeleteResponse": {
+        "type": "object",
+        "properties": {
+          "success": {"type": "boolean"},
+          "message": {"type": "string"}
+        }
+      }
+    }
+  }
+}

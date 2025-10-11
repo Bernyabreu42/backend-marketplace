@@ -1,11 +1,31 @@
-import { UserEntity } from "../entities/UserEntity"; // O el tipo que uses
+import type { RolesEnum } from "../../enums";
 
-// Puedes usar UserEntity si quieres tipado fuerte: user?: UserEntity
+type RequestStore = {
+  id: string;
+  ownerId: string;
+  status: string;
+};
 
 declare global {
   namespace Express {
+    interface UserClaims {
+      id: string;
+      email: string;
+      firstName: string | null;
+      lastName: string | null;
+      displayName: string | null;
+      username: string | null;
+      status: string;
+      emailVerified: boolean;
+      role: RolesEnum;
+      profileImage: string | null;
+      store: RequestStore | null;
+    }
+
     interface Request {
-      user?: any;
+      user?: UserClaims;
     }
   }
 }
+
+export {};

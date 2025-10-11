@@ -15,7 +15,7 @@ export class ApiPaginatedResponse<T> {
 
   constructor({
     data,
-    message = "Éxito",
+    message = "Exito",
     pagination,
   }: {
     data: T[];
@@ -40,3 +40,4 @@ export class ApiPaginatedResponse<T> {
     return new ApiPaginatedResponse<T>({ data, pagination, message });
   }
 }
+

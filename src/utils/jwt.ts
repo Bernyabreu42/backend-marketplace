@@ -1,21 +1,30 @@
 import jwt, { type JwtPayload } from "jsonwebtoken";
+import { randomUUID } from "crypto";
 
-const JWT_SECRET = process.env.JWT_SECRET || "";
-const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || "";
-const EMAIL_TOKEN_SECRET = process.env.EMAIL_TOKEN_SECRET || "";
-const RESET_SECRET = process.env.RESET_SECRET || "";
+import { env } from "../config/env";
+
+const {
+  JWT_SECRET,
+  JWT_REFRESH_SECRET,
+  EMAIL_TOKEN_SECRET,
+  RESET_SECRET,
+} = env;
 
 export const generateAccessToken = (payload: { id: string }) =>
-  jwt.sign(payload, JWT_SECRET!, { expiresIn: "15m" });
+  jwt.sign(payload, JWT_SECRET, { expiresIn: "15m" });
 
 export const generateRefreshToken = (payload: { id: string }) =>
-  jwt.sign(payload, JWT_REFRESH_SECRET!, { expiresIn: "7d" });
+  jwt.sign(
+    { sub: payload.id, id: payload.id, jti: randomUUID() },
+    JWT_REFRESH_SECRET,
+    { expiresIn: "7d" }
+  );
 
 export const verifyAccessToken = (token: string) =>
-  jwt.verify(token, JWT_SECRET!) as JwtPayload;
+  jwt.verify(token, JWT_SECRET) as JwtPayload;
 
 export const verifyRefreshToken = (token: string) =>
-  jwt.verify(token, JWT_REFRESH_SECRET!) as JwtPayload;
+  jwt.verify(token, JWT_REFRESH_SECRET) as JwtPayload;
 
 export const generateEmailToken = (payload: { id: string }) =>
   jwt.sign({ ...payload, purpose: "email_verify" }, EMAIL_TOKEN_SECRET, {
@@ -26,7 +35,7 @@ export const verifyEmailToken = (token: string) => {
   const data = jwt.verify(token, EMAIL_TOKEN_SECRET) as JwtPayload & {
     purpose?: string;
   };
-  if (data.purpose !== "email_verify") throw new Error("Token inválido");
+  if (data.purpose !== "email_verify") throw new Error("Token invalido");
   return data;
 };
 
@@ -39,6 +48,6 @@ export const verifyPasswordResetToken = (token: string) => {
   const p = jwt.verify(token, RESET_SECRET) as JwtPayload & {
     purpose?: string;
   };
-  if (p.purpose !== "pwd_reset") throw new Error("Token inválido");
+  if (p.purpose !== "pwd_reset") throw new Error("Token invalido");
   return p;
 };

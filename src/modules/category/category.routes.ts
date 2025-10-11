@@ -22,3 +22,4 @@ router.patch("/:id", routeProtector([RolesEnum.ADMIN]), updateCategory);
 router.delete("/:id", routeProtector([RolesEnum.ADMIN]), deleteCategory);
 
 export default router;
+

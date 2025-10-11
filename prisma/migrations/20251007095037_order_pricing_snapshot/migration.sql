@@ -1,0 +1,9 @@
+-- AlterTable
+ALTER TABLE "Order" ADD COLUMN     "priceAdjustments" JSONB,
+ADD COLUMN     "promotionCodeUsed" TEXT;
+
+-- AlterTable
+ALTER TABLE "OrderItem" ADD COLUMN     "lineDiscount" DOUBLE PRECISION NOT NULL DEFAULT 0,
+ADD COLUMN     "lineSubtotal" DOUBLE PRECISION NOT NULL DEFAULT 0,
+ADD COLUMN     "unitPrice" DOUBLE PRECISION NOT NULL DEFAULT 0,
+ADD COLUMN     "unitPriceFinal" DOUBLE PRECISION NOT NULL DEFAULT 0;

@@ -5,7 +5,9 @@ import {
   createStore,
   deleteStore,
   getAllStores,
+  getFeaturedStores,
   getStore,
+  restoreStore,
   updateStore,
   updateStoreStatus,
   uploadStoreImages,
@@ -19,13 +21,15 @@ router.post("/create", routeProtector([RolesEnum.BUYER]), createStore);
 
 router.get(
   "/all",
-  routeProtector([RolesEnum.ADMIN, RolesEnum.SUPPORT]),
+  // routeProtector([RolesEnum.ADMIN, RolesEnum.SUPPORT]),
   getAllStores
 );
 
 router.patch("/update/:id", routeProtector([RolesEnum.SELLER]), updateStore);
 
-router.get("/:id", routeProtector(), getStore);
+router.get("/featured", getFeaturedStores);
+
+router.get("/:id", getStore);
 
 router.patch(
   "/:storeId/status",
@@ -38,6 +42,12 @@ router.delete(
   "/:storeId",
   routeProtector([RolesEnum.ADMIN, RolesEnum.SELLER]),
   deleteStore
+);
+
+router.patch(
+  "/:storeId/restore",
+  routeProtector([RolesEnum.ADMIN]),
+  restoreStore
 );
 
 router.patch("/update-image", routeProtector(), uploadStoreImages);

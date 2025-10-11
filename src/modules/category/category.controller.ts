@@ -3,12 +3,12 @@ import { ApiPaginatedResponse } from "../../core/responses/ApiPaginatedResponse"
 import prisma from "../../database/prisma";
 import { paginate } from "../../utils/pagination";
 import { ApiResponse } from "../../core/responses/ApiResponse";
-import { IdSchema } from "../products/validated";
+import { IdSchema } from "../products/validator";
 import {
   CreateCategorySchema,
   toSlug,
   UpdateCategorySchema,
-} from "./validated";
+} from "./validator";
 import { buildWhere } from "../../utils";
 
 export const getAllCategories = async (req: Request, res: Response) => {
@@ -18,6 +18,9 @@ export const getAllCategories = async (req: Request, res: Response) => {
       where: buildWhere("category", req.query),
       query: req.query,
       orderBy: { createdAt: "desc" },
+      include: {
+        _count: { select: { products: true } },
+      },
     });
 
     res.json(ApiPaginatedResponse.success(result));

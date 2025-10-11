@@ -1,5 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 
+import { accessTokenCookie, refreshTokenCookie } from "../../config/cookies";
+import { env } from "../../config/env";
 import { ApiResponse } from "../../core/responses/ApiResponse";
 import prisma from "../../database/prisma";
 import bcrypt from "bcrypt";
@@ -23,24 +25,87 @@ interface VerifyToken {
   email: string;
 }
 
-const isProd = process.env.NODE_ENV === "production";
-const accessCookie = {
-  httpOnly: true,
-  secure: isProd,
-  sameSite: isProd ? "none" : "lax",
-  maxAge: 15 * 60 * 1000, // 15m
-  path: "/",
-} as const;
-const refreshCookie = {
-  httpOnly: true,
-  secure: isProd,
-  sameSite: isProd ? "none" : "lax",
-  maxAge: 7 * 24 * 60 * 60 * 1000, // 7d
-  path: "/",
-} as const;
-
 const getUserIdFromPayload = (p: any): string | undefined =>
   p && typeof p === "object" ? p.sub ?? p.id : undefined;
+
+const mapUserPayload = (user: {
+  id: string;
+  email: string;
+  username: string | null;
+  status: string;
+  emailVerified: boolean;
+  isOnline: boolean;
+  lastLogin: Date | null;
+  lastSeenAt: Date | null;
+  profileImage: string | null;
+  role: string;
+  store?: {
+    id: string;
+    name: string | null;
+    status: string;
+    ownerId: string;
+  } | null;
+}) => {
+  const sellerUpgrade =
+    user.role === RolesEnum.BUYER
+      ? (() => {
+          if (user.store) {
+            return {
+              available: false,
+              reason: "store_pending_review",
+              headline: "Estamos evaluando tu tienda",
+              description:
+                "Ya iniciaste el proceso para vender. Te avisaremos cuando tu tienda este lista.",
+              status: user.store.status,
+            };
+          }
+
+          const baseUrl =
+            env.SELLER_ONBOARDING_URL ||
+            `${env.CLIENT_URL.replace(/\/$/, "")}/seller/onboarding`;
+
+          return {
+            available: true,
+            headline: "Listo para vender en CommerceHub",
+            description:
+              "Abre tu tienda y empieza a ofrecer productos en minutos. Solo necesitas completar un formulario con datos basicos.",
+            action: {
+              label: "Quiero ser vendedor",
+              href: baseUrl,
+            },
+          };
+        })()
+      : null;
+
+  return {
+    id: user.id,
+    email: user.email,
+    username: user.username,
+    status: user.status,
+    emailVerified: user.emailVerified,
+    isOnline: user.isOnline,
+    lastLogin: user.lastLogin,
+    lastSeenAt: user.lastSeenAt,
+    profileImage: user.profileImage,
+    role: user.role,
+    store: user.store
+      ? {
+          id: user.store.id,
+          name: user.store.name,
+          status: user.store.status,
+          ownerId: user.store.ownerId,
+        }
+      : null,
+    sellerUpgrade,
+  };
+};
+
+const clearAccessTokenCookie = (({ maxAge, ...rest }) => rest)(
+  accessTokenCookie
+);
+const clearRefreshTokenCookie = (({ maxAge, ...rest }) => rest)(
+  refreshTokenCookie
+);
 
 export const verifyMe = async (req: Request, res: Response) => {
   const accessToken = req.cookies?.accessToken;
@@ -66,13 +131,14 @@ export const verifyMe = async (req: Request, res: Response) => {
               lastSeenAt: true,
               profileImage: true,
               role: true,
+              store: true,
             },
           });
           if (user && user.status === "active" && user.emailVerified) {
             res.status(200).json(
               ApiResponse.success({
                 message: "Usuario autenticado",
-                data: user,
+                data: mapUserPayload(user),
               })
             );
             return;
@@ -149,8 +215,8 @@ export const verifyMe = async (req: Request, res: Response) => {
 
     // 2.4 setear cookies nuevas
     res
-      .cookie("accessToken", newAccessToken, accessCookie)
-      .cookie("refreshToken", newRefreshToken, refreshCookie)
+      .cookie("accessToken", newAccessToken, accessTokenCookie)
+      .cookie("refreshToken", newRefreshToken, refreshTokenCookie)
       .status(200)
       .json(
         ApiResponse.success({
@@ -236,8 +302,8 @@ export const refreshToken = async (req: Request, res: Response) => {
 
     // 4) Setear cookies nuevas
     res
-      .cookie("accessToken", newAccessToken, accessCookie)
-      .cookie("refreshToken", newRefreshToken, refreshCookie)
+      .cookie("accessToken", newAccessToken, accessTokenCookie)
+      .cookie("refreshToken", newRefreshToken, refreshTokenCookie)
       .status(200)
       .json(
         ApiResponse.success({
@@ -317,8 +383,8 @@ export const loginUser = async (req: Request, res: Response) => {
     });
 
     res
-      .cookie("accessToken", accessToken, accessCookie)
-      .cookie("refreshToken", refreshToken, refreshCookie)
+      .cookie("accessToken", accessToken, accessTokenCookie)
+      .cookie("refreshToken", refreshToken, refreshTokenCookie)
       .json(
         ApiResponse.success({
           message: "Inicio de sesión exitoso",
@@ -333,7 +399,7 @@ export const loginUser = async (req: Request, res: Response) => {
 };
 
 export const registerAccount = async (req: Request, res: Response) => {
-  const { email, password: passwordBody, username } = req.body;
+  const { email, password: passwordBody, firstName, lastName } = req.body;
 
   try {
     const emailParse = email?.trim().toLowerCase();
@@ -358,7 +424,8 @@ export const registerAccount = async (req: Request, res: Response) => {
 
     const user = await prisma.user.create({
       data: {
-        username,
+        firstName,
+        lastName,
         email: emailParse,
         password: hashedPassword,
         role: RolesEnum.BUYER,
@@ -375,8 +442,8 @@ export const registerAccount = async (req: Request, res: Response) => {
       subject: "Verifica tu cuenta en Health Friend SRL",
       template: "verification",
       data: {
-        name: username || emailParse.split("@")[0],
-        verificationUrl: `${process.env.CLIENT_URL}/auth/verified-account?token=${verifyToken}`,
+        name: `${user.firstName} ${user.lastName}` || emailParse.split("@")[0],
+        verificationUrl: `${env.CLIENT_URL}/auth/verify?token=${verifyToken}`,
       },
     });
 
@@ -470,7 +537,7 @@ export const forgotPassword = async (req: Request, res: Response) => {
     }
 
     const token = generatePasswordResetToken({ id: user.id });
-    const resetLink = `${process.env.CLIENT_URL}/auth/reset-password?token=${token}`;
+    const resetLink = `${env.CLIENT_URL}/auth/reset-password?token=${token}`;
 
     await mailService({
       to: email,
@@ -588,8 +655,8 @@ export const logoutUser = async (req: Request, res: Response) => {
     }
 
     res
-      .clearCookie("accessToken", accessCookie)
-      .clearCookie("refreshToken", refreshCookie)
+      .clearCookie("accessToken", clearAccessTokenCookie)
+      .clearCookie("refreshToken", clearRefreshTokenCookie)
       .status(200)
       .json(ApiResponse.success({ message: "Sesión cerrada correctamente" }));
   } catch (error) {
