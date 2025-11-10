@@ -5,9 +5,37 @@ import { generateRefreshToken } from "../../utils/jwt";
 
 const { JWT_REFRESH_SECRET } = env;
 const REFRESH_TOKEN_EXPIRATION_DAYS = 7;
+const SESSION_MAX_TTL_DAYS = 30;
+const MAX_USER_AGENT_LENGTH = 512;
+const MAX_IP_LENGTH = 64;
+const MAX_DEVICE_ID_LENGTH = 128;
 
 const addDays = (d: Date, n: number) =>
   new Date(d.getTime() + n * 24 * 60 * 60 * 1000);
+
+const sanitizeSessionMeta = (
+  meta?: { userAgent?: string; ip?: string; deviceId?: string }
+) => {
+  if (!meta) return {};
+
+  const trimmed: {
+    userAgent?: string;
+    ip?: string;
+    deviceId?: string;
+  } = {};
+
+  if (meta.userAgent) {
+    trimmed.userAgent = meta.userAgent.slice(0, MAX_USER_AGENT_LENGTH);
+  }
+  if (meta.ip) {
+    trimmed.ip = meta.ip.slice(0, MAX_IP_LENGTH);
+  }
+  if (meta.deviceId) {
+    trimmed.deviceId = meta.deviceId.slice(0, MAX_DEVICE_ID_LENGTH);
+  }
+
+  return trimmed;
+};
 
 /** 1) Crear sesion + presencia */
 export async function createSession(
@@ -17,6 +45,7 @@ export async function createSession(
   const refreshToken = generateRefreshToken({ id: userId });
 
   const expiresAt = addDays(new Date(), REFRESH_TOKEN_EXPIRATION_DAYS);
+  const sanitizedMeta = sanitizeSessionMeta(meta);
 
   await prisma.$transaction([
     prisma.session.create({
@@ -24,9 +53,7 @@ export async function createSession(
         userId,
         refreshToken,
         expiresAt,
-        userAgent: meta?.userAgent,
-        ip: meta?.ip,
-        deviceId: meta?.deviceId,
+        ...sanitizedMeta,
       },
     }),
 
@@ -93,24 +120,46 @@ export async function getValidSession(refreshToken: string) {
 }
 
 /** 4) (Opcional) Rotar refresh token en /refresh */
-export async function rotateRefreshToken(oldToken: string) {
+export async function rotateRefreshToken(
+  oldToken: string,
+  meta?: { userAgent?: string; ip?: string; deviceId?: string }
+) {
   const session = await getValidSession(oldToken);
   if (!session) return null;
 
+  const now = new Date();
+  if (SESSION_MAX_TTL_DAYS > 0) {
+    const maxLifetime = addDays(session.createdAt, SESSION_MAX_TTL_DAYS);
+    if (maxLifetime <= now) {
+      await deleteSession(oldToken);
+      return null;
+    }
+  }
+
   const newToken = generateRefreshToken({ id: session.userId });
+  const newExpires = addDays(now, REFRESH_TOKEN_EXPIRATION_DAYS);
+  const sanitizedMeta = sanitizeSessionMeta(meta);
 
-  const newExpires = addDays(new Date(), REFRESH_TOKEN_EXPIRATION_DAYS);
+  const updateData: Record<string, unknown> = {
+    refreshToken: newToken,
+    expiresAt: newExpires,
+    updatedAt: now,
+  };
 
-  // Podes: a) actualizar la misma fila, o b) revocar y crear una nueva (historico mas limpio).
+  if (sanitizedMeta.userAgent) {
+    updateData.userAgent = sanitizedMeta.userAgent;
+  }
+  if (sanitizedMeta.ip) {
+    updateData.ip = sanitizedMeta.ip;
+  }
+  if (sanitizedMeta.deviceId) {
+    updateData.deviceId = sanitizedMeta.deviceId;
+  }
+
   await prisma.session.update({
     where: { id: session.id },
-    data: {
-      refreshToken: newToken,
-      expiresAt: newExpires,
-      updatedAt: new Date(),
-    },
+    data: updateData,
   });
 
-  return { refreshToken: newToken, expiresAt: newExpires };
+  return { refreshToken: newToken, expiresAt: newExpires, session };
 }
-

@@ -4,12 +4,8 @@ import { accessTokenCookie, refreshTokenCookie } from "../config/cookies";
 import type { RolesEnum } from "../core/enums";
 import { ApiResponse } from "../core/responses/ApiResponse";
 import prisma from "../database/prisma";
-import { createSession } from "../modules/sessions/sessions.controller";
-import {
-  generateAccessToken,
-  verifyAccessToken,
-  verifyRefreshToken,
-} from "../utils/jwt";
+import { rotateRefreshToken } from "../modules/sessions/sessions.controller";
+import { generateAccessToken, verifyAccessToken } from "../utils/jwt";
 
 const userForRequestSelect = {
   id: true,
@@ -39,6 +35,23 @@ const findUserForRequest = (userId: string) =>
 
 const isRoleAllowed = (allowed: RolesEnum[] | undefined, role: RolesEnum) =>
   !allowed || allowed.includes(role);
+
+const extractClientIp = (req: Request): string | undefined => {
+  const forwarded = req.headers["x-forwarded-for"];
+  if (typeof forwarded === "string" && forwarded.trim()) {
+    return forwarded.split(",")[0]?.trim();
+  }
+  if (Array.isArray(forwarded) && forwarded.length > 0) {
+    return forwarded[0];
+  }
+  return req.ip;
+};
+
+const extractUserAgent = (req: Request): string | undefined => {
+  const header = req.headers["user-agent"];
+  if (Array.isArray(header)) return header[0];
+  return header ?? undefined;
+};
 
 export const routeProtector = (allowedRoles?: RolesEnum[]) => {
   return async (req: Request, res: Response, next: NextFunction) => {
@@ -75,19 +88,19 @@ export const routeProtector = (allowedRoles?: RolesEnum[]) => {
         return;
       }
 
-      const payload = verifyRefreshToken(refreshToken);
-      const userId = payload?.sub ?? payload.id;
-
-      const session = await prisma.session.findUnique({
-        where: { refreshToken },
+      const rotation = await rotateRefreshToken(refreshToken, {
+        userAgent: extractUserAgent(req),
+        ip: extractClientIp(req),
       });
 
-      if (!session) {
-        res.status(401).json(ApiResponse.error({ message: "Sesion invalida" }));
+      if (!rotation) {
+        res
+          .status(401)
+          .json(ApiResponse.error({ message: "Sesion expirada o invalida" }));
         return;
       }
 
-      const user = await findUserForRequest(userId);
+      const user = await findUserForRequest(rotation.session.userId);
 
       if (!user) {
         res
@@ -96,16 +109,11 @@ export const routeProtector = (allowedRoles?: RolesEnum[]) => {
         return;
       }
 
-      await prisma.session.deleteMany({
-        where: { refreshToken },
-      });
-
-      const newRefreshToken = await createSession(user.id);
       const newAccessToken = generateAccessToken({ id: user.id });
 
       res
         .cookie("accessToken", newAccessToken, accessTokenCookie)
-        .cookie("refreshToken", newRefreshToken, refreshTokenCookie);
+        .cookie("refreshToken", rotation.refreshToken, refreshTokenCookie);
 
       if (!isRoleAllowed(allowedRoles, user.role as RolesEnum)) {
         res.status(403).json(ApiResponse.error({ message: "Acceso denegado" }));

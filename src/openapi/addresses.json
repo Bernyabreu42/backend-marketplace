@@ -1,0 +1,302 @@
+{
+  "paths": {
+    "/api/addresses": {
+      "get": {
+        "tags": ["Addresses"],
+        "summary": "Listar direcciones de envío del usuario",
+        "security": [
+          {
+            "basicAuth": [],
+            "accessCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Listado de direcciones",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserAddressListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Autenticación requerida"
+          }
+        }
+      },
+      "post": {
+        "tags": ["Addresses"],
+        "summary": "Crear una nueva dirección de envío",
+        "security": [
+          {
+            "basicAuth": [],
+            "accessCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserAddressCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Dirección creada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserAddressResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Datos inválidos"
+          },
+          "401": {
+            "description": "Autenticación requerida"
+          }
+        }
+      }
+    },
+    "/api/addresses/{id}": {
+      "patch": {
+        "tags": ["Addresses"],
+        "summary": "Actualizar una dirección de envío",
+        "security": [
+          {
+            "basicAuth": [],
+            "accessCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserAddressUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Dirección actualizada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserAddressResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Datos inválidos"
+          },
+          "401": {
+            "description": "Autenticación requerida"
+          },
+          "404": {
+            "description": "Dirección no encontrada"
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Addresses"],
+        "summary": "Eliminar una dirección de envío",
+        "security": [
+          {
+            "basicAuth": [],
+            "accessCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Dirección eliminada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Autenticación requerida"
+          },
+          "404": {
+            "description": "Dirección no encontrada"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ShippingAddress": {
+        "type": "object",
+        "properties": {
+          "country": {
+            "type": "string",
+            "example": "Dominican Republic"
+          },
+          "state": {
+            "type": "string",
+            "example": "Distrito Nacional"
+          },
+          "city": {
+            "type": "string",
+            "example": "Santo Domingo"
+          },
+          "postalCode": {
+            "type": "string",
+            "example": "10101"
+          },
+          "street": {
+            "type": "string",
+            "example": "Calle Las Palmeras #123"
+          },
+          "note": {
+            "type": "string",
+            "example": "Portón azul, tocar dos veces",
+            "nullable": true
+          }
+        },
+        "required": [
+          "country",
+          "state",
+          "city",
+          "postalCode",
+          "street"
+        ]
+      },
+      "UserAddress": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "label": {
+            "type": "string",
+            "nullable": true
+          },
+          "address": {
+            "$ref": "#/components/schemas/ShippingAddress"
+          },
+          "isDefault": {
+            "type": "boolean",
+            "example": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "UserAddressCreateRequest": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string",
+            "example": "Casa"
+          },
+          "address": {
+            "$ref": "#/components/schemas/ShippingAddress"
+          },
+          "isDefault": {
+            "type": "boolean",
+            "example": true,
+            "description": "Si es true, esta dirección reemplaza la predeterminada actual"
+          }
+        },
+        "required": [
+          "address"
+        ]
+      },
+      "UserAddressUpdateRequest": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string",
+            "example": "Oficina"
+          },
+          "address": {
+            "$ref": "#/components/schemas/ShippingAddress"
+          },
+          "isDefault": {
+            "type": "boolean",
+            "example": true
+          }
+        }
+      },
+      "UserAddressResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "example": "Direccion creada"
+          },
+          "data": {
+            "$ref": "#/components/schemas/UserAddress"
+          }
+        }
+      },
+      "UserAddressListResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "example": "Direcciones obtenidas"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UserAddress"
+            }
+          }
+        }
+      }
+    }
+  }
+}

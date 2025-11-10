@@ -2,6 +2,9 @@ import * as loyaltyService from "../../core/services/loyalty-service";
 import prisma from "../../database/prisma";
 import { notifyLoyaltyPointsEarned } from "../../core/services/notificationService";
 
+const loyaltyEnabled =
+  (process.env.LOYALTY_POINTS_ENABLED ?? "").toLowerCase() === "true";
+
 type AwardExecutor = (orderId: string) => Promise<unknown>;
 
 type OrderEntity = { id: string };
@@ -18,6 +21,7 @@ const globalState = globalThis as unknown as {
 };
 
 const defaultExecutor: AwardExecutor = async (orderId) => {
+  if (!loyaltyEnabled) return;
   const result = await loyaltyService.awardPointsForOrder(orderId);
 
   if (!result || result.skipped || !result.transaction?.points) {

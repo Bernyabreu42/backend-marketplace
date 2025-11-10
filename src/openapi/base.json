@@ -54,6 +54,12 @@
     },
     {
       "name": "Sessions"
+    },
+    {
+      "name": "Addresses"
+    },
+    {
+      "name": "Favorites"
     }
   ],
   "paths": {},

@@ -35,17 +35,31 @@ const toPlainObject = (value: unknown): Record<string, unknown> => {
 const trimString = (value: unknown) =>
   typeof value === "string" ? value.trim() : value ?? null;
 
-const normalizeAddressPayload = (payload: Record<string, unknown>) => {
-  if (!payload) return payload;
+const ADDRESS_KEYS = [
+  "country",
+  "state",
+  "city",
+  "postalCode",
+  "street",
+  "apartment",
+  "note",
+  "notes",
+  "reference",
+  "phone",
+  "recipientName",
+  "contactName",
+] as const;
+
+const normalizeAddressPayload = (payload?: Record<string, unknown>) => {
+  if (!payload) return {};
   const plain = toPlainObject(payload);
 
-  const normalizedEntries = Object.entries(plain).reduce(
-    (acc, [key, value]) => {
-      acc[key] = trimString(value);
-      return acc;
-    },
-    {} as Record<string, unknown>
-  );
+  const normalizedEntries = ADDRESS_KEYS.reduce((acc, key) => {
+    if (plain[key] !== undefined) {
+      acc[key] = trimString(plain[key]);
+    }
+    return acc;
+  }, {} as Record<string, unknown>);
 
   const noteValue =
     (typeof normalizedEntries.reference === "string" &&
@@ -63,8 +77,21 @@ const normalizeAddressPayload = (payload: Record<string, unknown>) => {
       note: noteValue,
       notes: noteValue,
       reference: noteValue,
-    }).filter(([, value]) => value !== undefined)
+    }).filter(([, value]) => value !== undefined && value !== null)
   );
+};
+
+const extractAddressInput = (payload: Record<string, unknown>) => {
+  if (payload.address && typeof payload.address === "object") {
+    return toPlainObject(payload.address);
+  }
+
+  return ADDRESS_KEYS.reduce((acc, key) => {
+    if (payload[key] !== undefined) {
+      acc[key] = payload[key];
+    }
+    return acc;
+  }, {} as Record<string, unknown>);
 };
 
 const sanitizeAddressResponse = (record: any) => {
@@ -172,7 +199,9 @@ export const createAddress = async (req: Request, res: Response) => {
         data: {
           userId: req.user!.id,
           label: parsed.data.label,
-          address: normalizeAddressPayload(parsed.data.address),
+          address: normalizeAddressPayload(
+            extractAddressInput(parsed.data as unknown as Record<string, unknown>)
+          ),
           isDefault: shouldBeDefault,
         },
         select: addressSelect,
@@ -246,8 +275,11 @@ export const updateAddress = async (req: Request, res: Response) => {
         dataToUpdate.label = parsed.data.label;
       }
 
-      if (parsed.data.address) {
-        dataToUpdate.address = normalizeAddressPayload(parsed.data.address);
+      const addressInput = extractAddressInput(
+        parsed.data as unknown as Record<string, unknown>
+      );
+      if (Object.keys(addressInput).length > 0) {
+        dataToUpdate.address = normalizeAddressPayload(addressInput);
       }
 
       if (parsed.data.isDefault === true) {

@@ -2,128 +2,547 @@
   "paths": {
     "/api/products": {
       "get": {
-        "tags": ["Products"],
+        "tags": [
+          "Products"
+        ],
         "summary": "Listar productos",
         "parameters": [
-          {"name": "page", "in": "query", "schema": {"type": "integer", "minimum": 1, "default": 1}},
-          {"name": "limit", "in": "query", "schema": {"type": "integer", "minimum": 1, "maximum": 100, "default": 10}},
-          {"name": "search", "in": "query", "schema": {"type": "string"}},
-          {"name": "status", "in": "query", "schema": {"type": "string", "enum": ["active", "inactive", "draft", "out_of_stock"]}}
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 10
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "active",
+                "inactive",
+                "draft",
+                "out_of_stock"
+              ]
+            }
+          }
         ],
         "responses": {
           "200": {
             "description": "Listado paginado",
-            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ProductListResponse"}}}
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductListResponse"
+                }
+              }
+            }
           }
         }
       },
       "post": {
-        "tags": ["Products"],
+        "tags": [
+          "Products"
+        ],
         "summary": "Crear producto",
-        "security": [{"basicAuth": [], "accessCookie": []}],
+        "security": [
+          {
+            "basicAuth": [],
+            "accessCookie": []
+          }
+        ],
         "requestBody": {
           "required": true,
-          "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ProductCreateRequest"}}}
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProductCreateRequest"
+              }
+            }
+          }
         },
         "responses": {
-          "201": {"description": "Producto creado", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ProductResponse"}}}},
-          "400": {"description": "Datos inválidos"},
-          "403": {"description": "No autorizado"}
+          "201": {
+            "description": "Producto creado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Datos inválidos"
+          },
+          "403": {
+            "description": "No autorizado"
+          }
         }
       }
     },
     "/api/products/{id}": {
       "get": {
-        "tags": ["Products"],
+        "tags": [
+          "Products"
+        ],
         "summary": "Detalle de producto",
         "parameters": [
-          {"name": "id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}}
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
         ],
         "responses": {
-          "200": {"description": "Detalle", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ProductResponse"}}}},
-          "400": {"description": "ID inválido"},
-          "404": {"description": "Producto no encontrado"}
+          "200": {
+            "description": "Detalle",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ID inválido"
+          },
+          "404": {
+            "description": "Producto no encontrado"
+          }
         }
       },
       "patch": {
-        "tags": ["Products"],
+        "tags": [
+          "Products"
+        ],
         "summary": "Actualizar producto",
-        "security": [{"basicAuth": [], "accessCookie": []}],
+        "security": [
+          {
+            "basicAuth": [],
+            "accessCookie": []
+          }
+        ],
         "parameters": [
-          {"name": "id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}}
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
         ],
         "requestBody": {
           "required": true,
-          "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ProductUpdateRequest"}}}
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProductUpdateRequest"
+              }
+            }
+          }
         },
         "responses": {
-          "200": {"description": "Actualizado", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ProductResponse"}}}},
-          "400": {"description": "Datos inválidos"},
-          "403": {"description": "No autorizado"},
-          "404": {"description": "Producto no encontrado"}
+          "200": {
+            "description": "Actualizado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Datos inválidos"
+          },
+          "403": {
+            "description": "No autorizado"
+          },
+          "404": {
+            "description": "Producto no encontrado"
+          }
         }
       },
       "delete": {
-        "tags": ["Products"],
+        "tags": [
+          "Products"
+        ],
         "summary": "Eliminar producto",
-        "security": [{"basicAuth": [], "accessCookie": []}],
+        "security": [
+          {
+            "basicAuth": [],
+            "accessCookie": []
+          }
+        ],
         "parameters": [
-          {"name": "id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}}
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
         ],
         "responses": {
-          "200": {"description": "Eliminado", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/MessageResponse"}}}},
-          "403": {"description": "No autorizado"},
-          "404": {"description": "Producto no encontrado"}
+          "200": {
+            "description": "Eliminado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No autorizado"
+          },
+          "404": {
+            "description": "Producto no encontrado"
+          }
         }
       }
     },
     "/api/products/store/{storeId}": {
       "get": {
-        "tags": ["Products"],
+        "tags": [
+          "Products"
+        ],
         "summary": "Productos por tienda",
         "parameters": [
-          {"name": "storeId", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}},
-          {"name": "page", "in": "query", "schema": {"type": "integer", "minimum": 1, "default": 1}},
-          {"name": "limit", "in": "query", "schema": {"type": "integer", "minimum": 1, "maximum": 100, "default": 10}}
+          {
+            "name": "storeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 10
+            }
+          }
         ],
         "responses": {
-          "200": {"description": "Listado paginado", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ProductListResponse"}}}},
-          "400": {"description": "ID inválido"}
+          "200": {
+            "description": "Listado paginado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ID inválido"
+          }
+        }
+      }
+    },
+    "/api/products/featured": {
+      "get": {
+        "tags": [
+          "Products"
+        ],
+        "summary": "Productos destacados",
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "default": 12
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Listado de productos destacados",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductListResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No autorizado"
+          }
         }
       }
     },
     "/api/products/{id}/related": {
       "get": {
-        "tags": ["Products"],
+        "tags": [
+          "Products"
+        ],
         "summary": "Productos relacionados",
         "parameters": [
-          {"name": "id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}}
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
         ],
         "responses": {
           "200": {
             "description": "Listado",
-            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ProductListResponse"}}}
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductListResponse"
+                }
+              }
+            }
           },
-          "400": {"description": "ID inválido"},
-          "404": {"description": "Producto no encontrado"}
+          "400": {
+            "description": "ID inválido"
+          },
+          "404": {
+            "description": "Producto no encontrado"
+          }
         }
       },
       "post": {
-        "tags": ["Products"],
+        "tags": [
+          "Products"
+        ],
         "summary": "Actualizar productos relacionados",
-        "security": [{"basicAuth": [], "accessCookie": []}],
+        "security": [
+          {
+            "basicAuth": [],
+            "accessCookie": []
+          }
+        ],
         "parameters": [
-          {"name": "id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}}
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
         ],
         "requestBody": {
           "required": true,
-          "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ProductRelatedRequest"}}}
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProductRelatedRequest"
+              }
+            }
+          }
         },
         "responses": {
-          "200": {"description": "Actualizado", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/MessageResponse"}}}},
-          "400": {"description": "Datos inválidos"},
-          "403": {"description": "No autorizado"},
-          "404": {"description": "Producto no encontrado"}
+          "200": {
+            "description": "Actualizado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Datos inválidos"
+          },
+          "403": {
+            "description": "No autorizado"
+          },
+          "404": {
+            "description": "Producto no encontrado"
+          }
+        }
+      }
+    },
+    "/api/products/search": {
+      "get": {
+        "tags": [
+          "Products"
+        ],
+        "summary": "Buscar productos en el marketplace",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "description": "Termino de busqueda (minimo 2 caracteres)",
+            "schema": {
+              "type": "string",
+              "minLength": 2
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 30,
+              "default": 10
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Listado de coincidencias",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductSearchResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Parametros invalidos"
+          }
+        }
+      }
+    },
+    "/api/products/store/{storeId}/search": {
+      "get": {
+        "tags": [
+          "Products"
+        ],
+        "summary": "Buscar productos por tienda",
+        "parameters": [
+          {
+            "name": "storeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "description": "Termino de busqueda (minimo 2 caracteres)",
+            "schema": {
+              "type": "string",
+              "minLength": 2
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 30,
+              "default": 10
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Listado de coincidencias",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductSearchResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Parametros invalidos"
+          },
+          "404": {
+            "description": "Tienda no disponible"
+          }
         }
       }
     }
@@ -133,115 +552,418 @@
       "Product": {
         "type": "object",
         "properties": {
-          "id": {"type": "string", "format": "uuid"},
-          "name": {"type": "string"},
-          "description": {"type": "string"},
-          "sku": {"type": ["string", "null"]},
-          "price": {"type": "number", "format": "float"},
-          "priceFinal": {"type": "number", "format": "float"},
-          "stock": {"type": "integer"},
-          "images": {"type": "array", "items": {"type": "string"}},
-          "status": {"type": "string", "enum": ["active", "inactive", "draft", "out_of_stock"]},
-          "storeId": {"type": "string", "format": "uuid"},
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "sku": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "price": {
+            "type": "number",
+            "format": "float"
+          },
+          "priceFinal": {
+            "type": "number",
+            "format": "float"
+          },
+          "stock": {
+            "type": "integer"
+          },
+          "images": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "inactive",
+              "draft",
+              "out_of_stock"
+            ]
+          },
+          "favoritesCount": {
+            "type": "integer",
+            "example": 12
+          },
+          "isFavorite": {
+            "type": "boolean",
+            "example": false,
+            "description": "Indica si el producto forma parte de los favoritos del usuario autenticado"
+          },
+          "storeId": {
+            "type": "string",
+            "format": "uuid"
+          },
           "categories": {
             "type": "array",
-            "items": {"$ref": "#/components/schemas/ProductCategory"}
+            "items": {
+              "$ref": "#/components/schemas/ProductCategory"
+            }
           },
           "taxes": {
             "type": "array",
-            "items": {"$ref": "#/components/schemas/Tax"}
+            "items": {
+              "$ref": "#/components/schemas/Tax"
+            }
           },
-          "createdAt": {"type": "string", "format": "date-time"},
-          "updatedAt": {"type": "string", "format": "date-time"}
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
         }
       },
       "ProductCategory": {
         "type": "object",
         "properties": {
-          "id": {"type": "string", "format": "uuid"},
-          "name": {"type": "string"},
-          "slug": {"type": "string"}
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          }
         }
       },
       "ProductCreateRequest": {
         "type": "object",
-        "required": ["name", "description", "price", "priceFinal", "stock", "categories", "storeId"],
+        "required": [
+          "name",
+          "description",
+          "price",
+          "priceFinal",
+          "stock",
+          "categories",
+          "storeId"
+        ],
         "properties": {
-          "name": {"type": "string"},
-          "description": {"type": "string"},
-          "sku": {"type": "string"},
-          "price": {"type": "number", "format": "float"},
-          "priceFinal": {"type": "number", "format": "float"},
-          "stock": {"type": "integer"},
-          "images": {"type": "array", "items": {"type": "string"}},
-          "categories": {"type": "array", "items": {"type": "string", "format": "uuid"}},
-          "taxes": {"type": "array", "items": {"type": "string", "format": "uuid"}},
-          "status": {"type": "string", "enum": ["active", "inactive", "draft", "out_of_stock"], "default": "active"},
-          "metaTitle": {"type": "string"},
-          "metaDescription": {"type": "string"},
-          "storeId": {"type": "string", "format": "uuid"}
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "sku": {
+            "type": "string"
+          },
+          "price": {
+            "type": "number",
+            "format": "float"
+          },
+          "priceFinal": {
+            "type": "number",
+            "format": "float"
+          },
+          "stock": {
+            "type": "integer"
+          },
+          "images": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "categories": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "taxes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "inactive",
+              "draft",
+              "out_of_stock"
+            ],
+            "default": "active"
+          },
+          "metaTitle": {
+            "type": "string"
+          },
+          "metaDescription": {
+            "type": "string"
+          },
+          "storeId": {
+            "type": "string",
+            "format": "uuid"
+          }
         }
       },
       "ProductUpdateRequest": {
         "type": "object",
         "properties": {
-          "name": {"type": "string"},
-          "description": {"type": "string"},
-          "sku": {"type": "string"},
-          "price": {"type": "number", "format": "float"},
-          "priceFinal": {"type": "number", "format": "float"},
-          "stock": {"type": "integer"},
-          "images": {"type": "array", "items": {"type": "string"}},
-          "categories": {"type": "array", "items": {"type": "string", "format": "uuid"}},
-          "taxes": {"type": "array", "items": {"type": "string", "format": "uuid"}},
-          "status": {"type": "string", "enum": ["active", "inactive", "draft", "out_of_stock"]},
-          "metaTitle": {"type": "string"},
-          "metaDescription": {"type": "string"}
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "sku": {
+            "type": "string"
+          },
+          "price": {
+            "type": "number",
+            "format": "float"
+          },
+          "priceFinal": {
+            "type": "number",
+            "format": "float"
+          },
+          "stock": {
+            "type": "integer"
+          },
+          "images": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "categories": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "taxes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "inactive",
+              "draft",
+              "out_of_stock"
+            ]
+          },
+          "metaTitle": {
+            "type": "string"
+          },
+          "metaDescription": {
+            "type": "string"
+          }
         }
       },
       "ProductRelatedRequest": {
         "type": "object",
-        "required": ["relatedProductIds"],
+        "required": [
+          "relatedProductIds"
+        ],
         "properties": {
-          "relatedProductIds": {"type": "array", "items": {"type": "string", "format": "uuid"}}
+          "relatedProductIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
         }
       },
       "ProductListResponse": {
         "type": "object",
         "properties": {
-          "success": {"type": "boolean", "example": true},
-          "message": {"type": "string", "example": "OK"},
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "example": "OK"
+          },
           "data": {
             "type": "array",
-            "items": {"$ref": "#/components/schemas/Product"}
+            "items": {
+              "$ref": "#/components/schemas/Product"
+            }
           },
-          "pagination": {"$ref": "#/components/schemas/PaginationMeta"}
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationMeta"
+          }
         }
       },
       "ProductResponse": {
         "type": "object",
         "properties": {
-          "success": {"type": "boolean", "example": true},
-          "message": {"type": "string", "example": "OK"},
-          "data": {"$ref": "#/components/schemas/Product"}
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "example": "OK"
+          },
+          "data": {
+            "$ref": "#/components/schemas/Product"
+          }
         }
       },
       "PaginationMeta": {
         "type": "object",
         "properties": {
-          "page": {"type": "integer", "example": 1},
-          "limit": {"type": "integer", "example": 10},
-          "total": {"type": "integer", "example": 120},
-          "totalPages": {"type": "integer", "example": 12},
-          "next": {"type": "boolean", "example": true},
-          "prev": {"type": "boolean", "example": false}
+          "page": {
+            "type": "integer",
+            "example": 1
+          },
+          "limit": {
+            "type": "integer",
+            "example": 10
+          },
+          "total": {
+            "type": "integer",
+            "example": 120
+          },
+          "totalPages": {
+            "type": "integer",
+            "example": 12
+          },
+          "next": {
+            "type": "boolean",
+            "example": true
+          },
+          "prev": {
+            "type": "boolean",
+            "example": false
+          }
         }
       },
       "MessageResponse": {
         "type": "object",
         "properties": {
-          "success": {"type": "boolean", "example": true},
-          "message": {"type": "string", "example": "Operación realizada"}
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "example": "Operación realizada"
+          }
+        }
+      },
+      "ProductSearchResult": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "price": {
+            "type": "number",
+            "format": "float"
+          },
+          "priceFinal": {
+            "type": "number",
+            "format": "float"
+          },
+          "images": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "stock": {
+            "type": "integer"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "inactive",
+              "draft",
+              "out_of_stock"
+            ]
+          },
+          "store": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "pending",
+                  "active",
+                  "inactive",
+                  "banned",
+                  "deleted"
+                ]
+              }
+            }
+          },
+          "favoritesCount": {
+            "type": "integer",
+            "example": 12
+          },
+          "isFavorite": {
+            "type": "boolean",
+            "example": false
+          },
+          "sku": {
+            "type": "string"
+          }
+        }
+      },
+      "ProductSearchResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "example": "Resultados de busqueda"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProductSearchResult"
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationMeta"
+          }
         }
       }
     }

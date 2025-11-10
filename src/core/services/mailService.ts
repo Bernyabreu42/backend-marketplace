@@ -1,4 +1,5 @@
-import nodemailer from "nodemailer";
+import nodemailer, { type Transporter } from "nodemailer";
+import type SMTPTransport from "nodemailer/lib/smtp-transport";
 
 import { env } from "../../config/env";
 import { renderTemplate } from "../../utils/render-template";
@@ -7,22 +8,24 @@ interface SendEmailProps {
   to: string;
   subject: string;
   template: string;
-  data: Record<string, any>;
+  data: Record<string, unknown>;
 }
 
-const createTransporter = () => {
+const createTransporter = (): Transporter<SMTPTransport.SentMessageInfo> | null => {
   if (!env.MAIL_USER || !env.MAIL_PASS) {
     return null;
   }
 
   try {
     if (env.MAIL_HOST) {
-      const transportOptions: nodemailer.TransportOptions = {
+      const port = env.MAIL_PORT ?? 587;
+      const secure =
+        env.MAIL_SECURE ?? (typeof env.MAIL_PORT === "number" ? env.MAIL_PORT === 465 : port === 465);
+
+      const transportOptions: SMTPTransport.Options = {
         host: env.MAIL_HOST,
-        port: env.MAIL_PORT ?? 587,
-        secure:
-          env.MAIL_SECURE ??
-          (typeof env.MAIL_PORT === "number" ? env.MAIL_PORT === 465 : false),
+        port,
+        secure,
         auth: {
           user: env.MAIL_USER,
           pass: env.MAIL_PASS,
@@ -37,16 +40,18 @@ const createTransporter = () => {
         transportOptions.requireTLS = env.MAIL_REQUIRE_TLS;
       }
 
-      return nodemailer.createTransport(transportOptions);
+      return nodemailer.createTransport<SMTPTransport.SentMessageInfo>(transportOptions);
     }
 
-    return nodemailer.createTransport({
+    const serviceOptions: SMTPTransport.Options = {
       service: env.MAIL_SERVICE ?? "gmail",
       auth: {
         user: env.MAIL_USER,
         pass: env.MAIL_PASS,
       },
-    });
+    };
+
+    return nodemailer.createTransport<SMTPTransport.SentMessageInfo>(serviceOptions);
   } catch (error) {
     console.error("Failed to initialize mail transporter:", error);
     return null;

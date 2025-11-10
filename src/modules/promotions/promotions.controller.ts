@@ -58,16 +58,34 @@ export const getPromotionsByStore = async (req: Request, res: Response) => {
 };
 
 export const getPromotionById = async (req: Request, res: Response) => {
-  const idCheck = promotionIdSchema.safeParse(req.params.id);
+  const rawIdentifier = String(req.params.id ?? "").trim();
 
-  if (!idCheck.success) {
-    res.status(400).json(ApiResponse.error({ message: "ID invalido" }));
+  if (!rawIdentifier) {
+    res.status(400).json(ApiResponse.error({ message: "Identificador inválido" }));
     return;
   }
 
+  const idCheck = promotionIdSchema.safeParse(rawIdentifier);
+
+  const whereClause = idCheck.success
+    ? { id: idCheck.data, isDeleted: false }
+    : {
+        isDeleted: false,
+        type: "coupon" as const,
+        OR: [{ code: rawIdentifier }, { name: rawIdentifier }],
+      };
+
   try {
-    const promotion = await prisma.promotion.findUnique({
-      where: { id: idCheck.data, isDeleted: false },
+    const promotion = await prisma.promotion.findFirst({
+      where: whereClause,
+      include: {
+        store: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
     });
 
     if (!promotion) {
@@ -75,6 +93,27 @@ export const getPromotionById = async (req: Request, res: Response) => {
         .status(404)
         .json(ApiResponse.error({ message: "Promocion no encontrada" }));
       return;
+    }
+
+    const requester = req.user ?? null;
+
+    if (requester?.id && promotion.type === "coupon" && promotion.id) {
+      const alreadyUsed = await prisma.order.count({
+        where: {
+          userId: requester.id,
+          promotionId: promotion.id,
+        },
+      });
+
+      if (alreadyUsed > 0) {
+        res.status(400).json(
+          ApiResponse.error({
+            message: "Este cupon ya fue utilizado por tu cuenta.",
+            error: { alreadyUsed: true },
+          })
+        );
+        return;
+      }
     }
 
     res.json(ApiResponse.success({ data: promotion }));

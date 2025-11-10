@@ -23,7 +23,7 @@ export const CreateOrderSchema = z.object({
   items: z.array(OrderItemSchema).min(1, "Debes incluir al menos un producto"),
   promotionCode: z.string().optional(),
   shippingAddress: z.any().optional(),
-  shippingMethod: z.string().optional(),
+  shippingMethodId: z.string().uuid("Metodo de envio invalido").optional(),
 });
 
 export const OrderQuerySchema = z.object({

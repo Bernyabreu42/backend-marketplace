@@ -10,7 +10,10 @@ import { validateCreateStore } from "./validator";
 import { ownerPublicSelect, storePublicSelect } from "./storePublicSelect";
 import { IdSchema } from "../products/validator";
 import { andWhere, buildWhere } from "../../utils";
-import { notifyStoreCreated, notifyStoreStatusChange } from "../../core/services/storeNotificationService";
+import {
+  notifyStoreCreated,
+  notifyStoreStatusChange,
+} from "../../core/services/storeNotificationService";
 
 const mapStoreMetrics = (store: any) => {
   const { reviews = [], orders = [], ...rest } = store;
@@ -208,7 +211,7 @@ export const getFeaturedStores = async (_req: Request, res: Response) => {
         OR: [{ featuredUntil: null }, { featuredUntil: { gte: now } }],
       },
       take: 10,
-      select: selection,
+      select: { ...selection, _count: { select: { reviews: true } } },
     });
 
     const computeBestSellerIds = (store: (typeof featuredRaw)[number]) => {
@@ -301,7 +304,7 @@ export const getFeaturedStores = async (_req: Request, res: Response) => {
 
           return {
             ...metrics,
-            topProducts: combined,
+            products: combined,
           };
         })
       );
@@ -339,6 +342,48 @@ export const getFeaturedStores = async (_req: Request, res: Response) => {
     res.status(500).json(
       ApiResponse.error({
         message: "Error al obtener tiendas destacadas",
+        error,
+      })
+    );
+  }
+};
+
+export const getPublicStores = async (req: Request, res: Response) => {
+  try {
+    const result = await paginate({
+      model: prisma.store,
+      query: req.query,
+      orderBy: { createdAt: "desc" },
+      where: andWhere(
+        {
+          status: "active",
+          isDeleted: false,
+        },
+        buildWhere("store", req.query)
+      ),
+      select: {
+        id: true,
+        name: true,
+        tagline: true,
+        description: true,
+        logo: true,
+        banner: true,
+        status: true,
+        isFeatured: true,
+        featuredUntil: true,
+        businessHours: true,
+        keywords: true,
+        metaTitle: true,
+        metaDesc: true,
+        _count: { select: { products: true, reviews: true } },
+      },
+    });
+
+    res.json(ApiPaginatedResponse.success(result));
+  } catch (error) {
+    res.status(500).json(
+      ApiResponse.error({
+        message: "Error al obtener tiendas",
         error,
       })
     );
@@ -497,14 +542,14 @@ export const updateStoreStatus = async (req: Request, res: Response) => {
       })
     );
   } catch (error: any) {
-    if (error?.code === 'P2025') {
+    if (error?.code === "P2025") {
       res.status(404).json(
-       ApiResponse.error({
-         message: "La tienda no fue encontrada.",
-       })
-     );
-     return;
-   }
+        ApiResponse.error({
+          message: "La tienda no fue encontrada.",
+        })
+      );
+      return;
+    }
     res.status(500).json(
       ApiResponse.error({
         message: "Error al actualizar el estado de la tienda",

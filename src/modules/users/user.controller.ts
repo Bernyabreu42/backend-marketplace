@@ -22,6 +22,23 @@ import { StatusStore, UserStatus } from "@prisma/client";
 import { RolesEnum } from "../../core/enums";
 import { mailService } from "../../core/services/mailService";
 
+const extractClientIp = (req: Request): string | undefined => {
+  const forwarded = req.headers["x-forwarded-for"];
+  if (typeof forwarded === "string" && forwarded.trim()) {
+    return forwarded.split(",")[0]?.trim();
+  }
+  if (Array.isArray(forwarded) && forwarded.length > 0) {
+    return forwarded[0];
+  }
+  return req.ip;
+};
+
+const extractUserAgent = (req: Request): string | undefined => {
+  const header = req.headers["user-agent"];
+  if (Array.isArray(header)) return header[0];
+  return header ?? undefined;
+};
+
 export const getUsers = async (req: Request, res: Response) => {
   try {
     const result = await paginate({
@@ -476,7 +493,10 @@ export const changePassword = async (req: Request, res: Response) => {
     ]);
 
     // 7) Emitir nuevos tokens
-    const newRefreshToken = await createSession(userId);
+    const newRefreshToken = await createSession(userId, {
+      userAgent: extractUserAgent(req),
+      ip: extractClientIp(req),
+    });
     const newAccessToken = generateAccessToken({ id: userId });
 
     res

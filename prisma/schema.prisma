@@ -63,7 +63,6 @@ enum BlogPostStatus {
   archived
 }
 
-
 enum UserStatus {
   active
   pending_review
@@ -76,6 +75,15 @@ enum RolesEnum {
   buyer
   support
 }
+
+// enum StoreAddress {
+//   country
+//   city
+//   state
+//   postalCode
+//   street
+//   note
+// }
 
 model User {
   id    String @id @default(uuid())
@@ -110,7 +118,9 @@ model User {
   loyaltyAccount      LoyaltyAccount?
   loyaltyTransactions LoyaltyTransaction[]
   loyaltyRedemptions  LoyaltyRedemption[]
-  blogPosts          BlogPost[]
+  blogPosts           BlogPost[]
+  addresses           UserAddress[]
+  favorites           Favorite[]
 }
 
 model Session {
@@ -136,22 +146,22 @@ model Session {
 }
 
 model Store {
-  id          String      @id @default(uuid())
-  name        String
-  tagline     String?
-  description String
-  email       String?
-  phone       String?
-  address     String?
-  website     String?
-  logo        String?
-  banner      String?
-  facebook    String?
-  instagram   String?
-  twitter     String?
-  youtube     String?
-  status      StatusStore
-  isFeatured  Boolean     @default(false)
+  id            String      @id @default(uuid())
+  name          String
+  tagline       String?
+  description   String
+  email         String?
+  phone         String?
+  address       Json?
+  website       String?
+  logo          String?
+  banner        String?
+  facebook      String?
+  instagram     String?
+  twitter       String?
+  youtube       String?
+  status        StatusStore
+  isFeatured    Boolean     @default(false)
   featuredUntil DateTime?
 
   // SEO
@@ -176,12 +186,11 @@ model Store {
   deletedAt DateTime?
   deletedBy String?
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  reviews   Review[]
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  reviews         Review[]
   shippingMethods ShippingMethod[]
 }
-
 
 enum ShippingStatus {
   active
@@ -189,7 +198,7 @@ enum ShippingStatus {
 }
 
 model ShippingMethod {
-  id          String  @id @default(uuid())
+  id          String         @id @default(uuid())
   name        String
   description String?
   cost        Float
@@ -197,6 +206,7 @@ model ShippingMethod {
 
   storeId String
   store   Store  @relation(fields: [storeId], references: [id])
+  orders  Order[]
 
   // Soft delete / auditoria
   isDeleted Boolean   @default(false)
@@ -206,7 +216,6 @@ model ShippingMethod {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
-
 
 model Tax {
   id          String       @id @default(uuid())
@@ -286,6 +295,7 @@ model Product {
   status          ProductStatus @default(active)
   metaTitle       String?
   metaDescription String?
+  isFeatured      Boolean       @default(false)
 
   // Relación con Descuentos
   discountId String?
@@ -304,6 +314,8 @@ model Product {
 
   orderItem OrderItem[]
   review    Review[]
+  favorites Favorite[]
+  favoritesCount Int @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -329,19 +341,20 @@ model Order {
   items OrderItem[]
 
   // Desglose de precio
-  subtotal          Float
+  subtotal            Float
   totalDiscountAmount Float @default(0)
-  taxAmount         Float @default(0)
-  shippingAmount    Float @default(0)
-  total             Float
+  taxAmount           Float @default(0)
+  shippingAmount      Float @default(0)
+  total               Float
 
   // Información de envío
-  shippingAddress Json?
-  shippingMethod  String?
-  trackingNumber  String?
+  shippingAddress  Json?
+  shippingMethodId String?
+  shippingMethod   ShippingMethod? @relation(fields: [shippingMethodId], references: [id])
+  trackingNumber   String?
 
-  promotionId String?
-  promotion   Promotion? @relation(fields: [promotionId], references: [id])
+  promotionId       String?
+  promotion         Promotion? @relation(fields: [promotionId], references: [id])
   promotionCodeUsed String?
   priceAdjustments  Json?
 
@@ -357,18 +370,46 @@ model Order {
 }
 
 model OrderItem {
+  id             String   @id @default(uuid())
+  orderId        String
+  productId      String
+  quantity       Int
+  unitPrice      Float    @default(0)
+  unitPriceFinal Float    @default(0)
+  lineSubtotal   Float    @default(0)
+  lineDiscount   Float    @default(0)
+  order          Order    @relation(fields: [orderId], references: [id])
+  product        Product  @relation(fields: [productId], references: [id])
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model Favorite {
   id        String   @id @default(uuid())
-  orderId   String
+  userId    String
   productId String
-  quantity  Int
-  unitPrice      Float  @default(0)
-  unitPriceFinal Float  @default(0)
-  lineSubtotal   Float  @default(0)
-  lineDiscount   Float  @default(0)
-  order     Order    @relation(fields: [orderId], references: [id])
-  product   Product  @relation(fields: [productId], references: [id])
+  createdAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId])
+  @@index([userId])
+  @@index([productId])
+}
+
+model UserAddress {
+  id        String   @id @default(uuid())
+  userId    String
+  label     String?
+  address   Json
+  isDefault Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model Review {
@@ -388,15 +429,15 @@ model Review {
 }
 
 model BlogPost {
-  id          String          @id @default(uuid())
+  id          String         @id @default(uuid())
   title       String
-  slug        String          @unique
+  slug        String         @unique
   excerpt     String?
   content     String
   coverImage  String?
-  status      BlogPostStatus  @default(draft)
+  status      BlogPostStatus @default(draft)
   publishedAt DateTime?
-  tags        String[]        @default([])
+  tags        String[]       @default([])
 
   authorId String
   author   User   @relation(fields: [authorId], references: [id])
@@ -410,7 +451,6 @@ model BlogPost {
   @@index([status, publishedAt])
   @@index([authorId])
 }
-
 
 model LoyaltyAction {
   id            String   @id @default(uuid())

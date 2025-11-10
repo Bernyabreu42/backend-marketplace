@@ -112,7 +112,14 @@ async function main() {
         "Tienda principal del marketplace con una selección curada de productos para el hogar, electrónica, moda y más.",
       email: seller.email,
       phone: "809-555-0101",
-      address: "Av. Principal 123, Ciudad Central",
+      address: {
+        country: "Dominican Republic",
+        city: "Santo Domingo",
+        state: "Distrito Nacional",
+        postalCode: "10101",
+        street: "Avenida 21 de Abril",
+        note: "Cerca del Centro Colonial (Patrimonio de la Humanidad)",
+      },
       status: StatusStore.active,
       keywords: "electronica, hogar, moda, deportes",
       metaTitle: "CommerceHub Central",
@@ -123,12 +130,11 @@ async function main() {
         { day: "wednesday", open: "09:00", close: "18:00" },
         { day: "thursday", open: "09:00", close: "18:00" },
         { day: "friday", open: "09:00", close: "18:00" },
-        { day: "saturday", open: "10:00", close: "14:00" },
+        { day: "saturday", open: "10:00", close: "1400" },
         { day: "sunday", open: "00:00", close: "00:00", closed: true },
       ],
     }
   );
-
   // --- Métodos de envío ---
   const shippingMethodsSeed = [
     {
@@ -336,6 +342,119 @@ async function main() {
           taxes: { create: taxes.slice(0, 1).map((t) => ({ taxId: t.id })) },
         },
       });
+    }
+  }
+
+  // --- Favoritos de ejemplo ---
+  const buyer = await prisma.user.findFirst({
+    where: { email: "buyer@gmail.com" },
+  });
+
+  if (buyer) {
+    const addressSeed = [
+      {
+        label: "Casa",
+        isDefault: true,
+        address: {
+          country: "Dominican Republic",
+          state: "Distrito Nacional",
+          city: "Santo Domingo",
+          postalCode: "10101",
+          street: "Calle Las Palmeras #123",
+          note: "Portón azul. Favor tocar dos veces.",
+        },
+      },
+      {
+        label: "Oficina",
+        isDefault: false,
+        address: {
+          country: "Dominican Republic",
+          state: "Distrito Nacional",
+          city: "Santo Domingo",
+          postalCode: "10112",
+          street: "Av. Winston Churchill 45, Torre B, Piso 7",
+          note: "Recepción solicita documento de identidad.",
+        },
+      },
+    ];
+
+    let defaultAddressId: string | null = null;
+
+    for (const payload of addressSeed) {
+      const found = await prisma.userAddress.findFirst({
+        where: { userId: buyer.id, label: payload.label ?? null },
+      });
+
+      if (found) {
+        const updated = await prisma.userAddress.update({
+          where: { id: found.id },
+          data: {
+            address: payload.address,
+            isDefault: payload.isDefault,
+          },
+        });
+        if (updated.isDefault) {
+          defaultAddressId = updated.id;
+        }
+      } else {
+        const created = await prisma.userAddress.create({
+          data: {
+            userId: buyer.id,
+            label: payload.label,
+            address: payload.address,
+            isDefault: payload.isDefault,
+          },
+        });
+        if (created.isDefault) {
+          defaultAddressId = created.id;
+        }
+      }
+    }
+
+    if (defaultAddressId) {
+      await prisma.userAddress.updateMany({
+        where: {
+          userId: buyer.id,
+          id: { not: defaultAddressId },
+        },
+        data: { isDefault: false },
+      });
+    } else {
+      const firstAddress = await prisma.userAddress.findFirst({
+        where: { userId: buyer.id },
+        orderBy: { createdAt: "asc" },
+      });
+      if (firstAddress) {
+        await prisma.userAddress.update({
+          where: { id: firstAddress.id },
+          data: { isDefault: true },
+        });
+      }
+    }
+
+    const sampleProducts = await prisma.product.findMany({
+      orderBy: { createdAt: "asc" },
+      take: 2,
+    });
+
+    for (const product of sampleProducts) {
+      const favoriteExists = await prisma.favorite.findFirst({
+        where: { userId: buyer.id, productId: product.id },
+      });
+
+      if (!favoriteExists) {
+        await prisma.favorite.create({
+          data: {
+            userId: buyer.id,
+            productId: product.id,
+          },
+        });
+
+        await prisma.product.update({
+          where: { id: product.id },
+          data: { favoritesCount: { increment: 1 } },
+        });
+      }
     }
   }
 

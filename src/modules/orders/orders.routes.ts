@@ -25,7 +25,7 @@ router.get("/store", routeProtector([RolesEnum.SELLER]), listStoreOrders);
 
 router.get("/:id", routeProtector(), getOrderById);
 
-router.post("/", routeProtector(), createOrder);
+router.post("/", routeProtector([RolesEnum.BUYER]), createOrder);
 
 router.patch(
   "/:id/status",

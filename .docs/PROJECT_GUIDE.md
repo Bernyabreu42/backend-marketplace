@@ -8,7 +8,7 @@
 - Store promotion: the `Store` model now tracks spotlighted sellers via `isFeatured` and `featuredUntil`, letting us surface curated storefronts today and plug in paid placement or subscription logic later.
 - Shipping management: `src/modules/shipping` centralizes CRUD for store-defined shipping methods, including public listing by store, seller-protected create/update/delete, and the new `GET /api/shipping/:id` detail endpoint now documented in OpenAPI.
 - Customer feedback: `src/modules/reviews` permite a los compradores calificar productos (1-5), listar reseñas por producto/tienda y administrar comentarios con controles de duplicados, permisos y visibilidad pública.
-- Order pricing snapshots: cada `OrderItem` almacena `unitPrice`, `unitPriceFinal`, `lineSubtotal` y `lineDiscount`, mientras que la orden registra `totalDiscountAmount`, `promotionCodeUsed` y `priceAdjustments` con detalle de descuentos/promos aplicados.
+- Order pricing snapshots: cada `OrderItem` almacena `unitPrice`, `unitPriceFinal`, `lineSubtotal` y `lineDiscount`, mientras que la orden registra `totalDiscountAmount`, `promotionCodeUsed` y `priceAdjustments` con detalle de descuentos/promos aplicados. El cálculo se delega al motor puro en `src/modules/orders/pricing-engine.ts`, que expone `applyProductDiscounts`, `calculateProductTax`, `applyStoreCartDiscounts`, `applyGlobalPromotions` y `calculateCartTotals` para recomponer subtotales por producto, tienda y carrito global sin duplicar lógica en controladores.
 - Featured stores: `GET /api/stores/featured` devuelve tiendas destacadas activas; si no hay, se devuelven las mejor valoradas y con más ventas (incluye métricas como `ratingAverage`, `ratingsCount`, `salesCount`).
 
 
@@ -50,6 +50,7 @@
 | `src/database/prisma.ts` | Singleton Prisma Client instance with dev-mode hot reload safeties. |
 | `src/middlewares/` | Cross-cutting express middleware (API key guard, JWT-based `routeProtector`, Zod validator, multipart uploads). |
 | `src/modules/` | Feature modules (auth, users, stores, products, orders, loyalty, etc.) typically exposing `*.routes.ts`, `*.controller.ts`, optional services/validators. |
+| `src/modules/orders/pricing-engine.ts` | Motor de cálculo puro para descuentos/impuestos/promociones por producto, tienda y carrito global; utilizado por `orders.controller.ts` y reutilizable para pruebas o procesos batch. |
 | `src/modules/blog/` | Blog feature (controllers, routes, validators) serving public posts and admin CRUD backed by Prisma `BlogPost`. |
 | `src/modules/stores/` | Store onboarding, CRUD, media uploads, featured metadata (`isFeatured`, `featuredUntil`), and the featured listing endpoint (`GET /api/stores/featured`). |
 | `src/modules/shipping/` | Shipping methods per store: public listing, detail retrieval, and seller-guarded create/update/delete operations with soft-delete safeguards. |
@@ -59,24 +60,26 @@
 | `prisma/` | Prisma schema, migrations, and `seed.ts` with deterministic bootstrap data. |
 | `tests/` | Bun test suites mirroring runtime structure (config, core, middlewares, modules, utils). |
 | `docs/` & `.docs/` | High-level documentation (`docs/project_documentation.md`) and this operational guide for tooling context providers. |
-| `uploads/` | Local filesystem target for uploaded assets (developer machines only; replace in production if needed). |
+| `uploads/` | Local filesystem target for uploaded assets (developer machines only; replace in production if needed). Failed deletions accumulate in `.delete-queue.json` until the next successful cleanup run. |
 
 ## 4. Development Workflow
 - **Coding conventions**: Use TypeScript strict mode. Keep controllers thin and funnel complex logic into services/utilities. Always wrap HTTP responses with `ApiResponse`/`ApiPaginatedResponse` for consistency. Validate request payloads via Zod schemas and `zodValidator` middleware before hitting controllers.
 - **Featured stores**: When curating recommendations, filter active, non-deleted stores and honor the new Prisma fields (`Store.isFeatured`, `Store.featuredUntil`). Seed data and selectors already expose both values so downstream services can implement business rules without extra queries.
 - **Shipping methods**: Consumers can fetch all methods via `GET /api/shipping/store/:storeId` or a single method with `GET /api/shipping/:id`. Sellers must authenticate (via `routeProtector`) to create, update, or soft-delete methods, so remember to propagate `req.user.storeId` in integrations.
 - **Reviews**: `GET /api/reviews/product/{productId}` y `/api/reviews/store/{storeId}` son públicos. Solo los buyers autenticados pueden crear reseñas (se valida duplicado por usuario/producto) y buyers o admins pueden editarlas/eliminarlas.
-- **Authentication & authorization**: Remember that every `/api/*` request must pass the Basic auth guard *and* any route-specific `routeProtector` (which refreshes tokens automatically when a valid refresh token cookie is present). Role-based access can be specified via `routeProtector(["admin", ...])`.
+- **Authentication & authorization**: Every `/api/*` request must satisfy the Basic auth guard *and* any route-specific `routeProtector`. Refresh rotation now happens in-place via `rotateRefreshToken`, which records `userAgent`/`ip`, enforces a 30-day session TTL, and preserves other active devices. Role-based access can be specified via `routeProtector(["admin", ...])`.
 - **Testing approach**: Unit/integration tests live under `tests/` and run with Bun's native runner. Tests often mock Prisma calls or hit in-memory server instances; keep new tests colocated by feature (e.g., `tests/modules/<feature>.test.ts`).
 - **Build & deployment**: The production entry point is `bun run start`, which deploys migrations (`prisma migrate deploy`), seeds via `prisma db seed`, and starts the server. Ensure migrations are generated (`bunx prisma migrate dev --name <change>`) and committed alongside schema changes.
 - **Contribution checklist**: Create a feature branch, update Prisma schema/migrations, add or update OpenAPI fragments + rerun `bun run openapi:build`, write tests, run `bun test`, and verify `bun run dev` boots without env validation errors. Open a PR with context about any new env vars. Add module-level docs (e.g., `modules/<feature>/guide.md`) if complexity grows.
+- **Documentación OpenAPI**: Cuando agregues rutas o campos, edita el fragmento correspondiente en `src/openapi/`, ejecuta `bun run openapi:build` para regenerar `src/openapi.json` y reinicia el servidor; la especificación se cachea en memoria y `/docs` no refleja cambios hasta el siguiente arranque.
 
 ## 5. Key Concepts
 - **ApiResponse & ApiPaginatedResponse** (`src/core/responses`): canonical response envelopes; always return these helpers to keep client contracts stable.
 - **API key guard** (`src/middlewares/apiKeyGuard.ts`): per-request Basic auth using `API_USERNAME`/`API_PASSWORD`. Even internal integrations must include this header.
-- **JWT session model**: Access tokens are short-lived JWTs; refresh tokens are persisted in the `Session` table. `routeProtector` rotates refresh tokens automatically to prevent replay attacks.
+- **JWT session model**: Access tokens are short-lived JWTs; refresh tokens are persisted in the `Session` table along with `userAgent`, `ip`, and optional `deviceId`. `routeProtector` rotates tokens in place (30-day max TTL per session) to prevent replay attacks without tearing down other devices.
 - **Loyalty hook** (`src/modules/orders/order-loyalty-hook.ts`): patches Prisma's `order.create` to queue loyalty point awards. Swap executors with `setLoyaltyAwardExecutor` in tests.
-- **Domain highlights**: Stores own products, taxes, shipping methods; promotions/discounts manage campaign rules; loyalty points accrue on orders; uploads store images locally but can be abstracted.
+- **Domain highlights**: Stores own products, taxes, shipping methods; promotions/discounts manage campaign rules; loyalty points accrue on orders; uploads store images locally (Sharp optimized) and failed deletions are logged to `uploads/.delete-queue.json` for later retries if you stick with the local filesystem; buyers pueden marcar productos como favoritos (modelo `Favorite`) con contador agregado en cada `Product.favoritesCount`.
+- **Perfiles de envío**: Cada usuario puede gestionar múltiples direcciones (`UserAddress`) reutilizables; el backend garantiza una única dirección predeterminada y reutiliza el mismo payload que `Order.shippingAddress`.
 - **Blog content**: `BlogPost` supports `draft`, `published`, and `archived` statuses, slug uniqueness, and optional scheduling via `publishedAt`. Seed data creates two published posts owned by the admin user.
 - **Validation & querying utilities**: `paginate`, `buildWhere`, and `andWhere` standardize filtering/pagination; Zod schemas under each module's `validator.ts` enforce request shape.
 
@@ -117,6 +120,7 @@
 
 ### 7.2 Product Visibility Rules
 - Public catalog endpoints (`GET /api/products`, `/api/products/:id`, `/api/products/store/:storeId`, `/api/products/:id/related`) solo muestran inventario de tiendas `status = "active"` y `isDeleted = false`. Propietarios de la tienda y roles `admin/support` reciben una excepción: mientras estén autenticados pueden consultar su catálogo aun si la tienda está pendiente, lo que permite revisar existencias antes de la aprobación.  
+- Las búsquedas (`/api/products/search` y variantes por tienda) intentan primero usar `unaccent` en PostgreSQL y cachean el resultado por término/tienda durante 30 s; si la extensión no está disponible, caen automáticamente a comparaciones `translate(...) LIKE ...`, lo que mantiene coincidencias sin acentos (p. ej. `algodon` contra “Algodón”).  
 - Requests for inventory tied to pending/disabled stores respond with a 404-style `"Producto no disponible"` payload to keep clients from displaying unavailable listings.  
 - No cache purge is required after reactivation; visibility flips automatically once the store returns to the active state.
 - `/api/stores/featured` ahora incluye `topProducts` (máximo 3). Se calcula primero con los más vendidos; si no hay ventas registradas, se rellenan con los últimos productos creados para que siempre haya contenido destacado.
@@ -126,16 +130,35 @@
 - For each store partition:  
   - Apply product-level discounts, coupon codes, shipping perks, and cart thresholds that belong to that store.  
   - Generate a per-store adjustment summary and persist it (e.g., append to `Order.priceAdjustments` for reconciliation).  
-- After per-store calculations, aggregate totals to present a unified checkout summary. Clearly label each adjustment (“Descuento Tienda Alpha”, “Promoción Tienda Beta”) in customer receipts and admin dashboards.  
-- Reserve “global” coupons for explicitly flagged cases; apply them after per-store passes to avoid leaking one seller’s budget into another’s order.
-- Buyer dashboards now receive a `sellerUpgrade` payload (via `verifyMe`) whenever the user role is `buyer`. This includes headline, copy, and CTA URL (defaults to `${CLIENT_URL}/seller/onboarding` or `SELLER_ONBOARDING_URL` if set) so the frontend can surface a “Convertirme en vendedor” action strategically. When a seller has already started onboarding, the payload flips to a pending-review message instead of the CTA.
+- After per-store calculations, aggregate totals to present a unified checkout summary. Clearly label each adjustment ("Descuento Tienda Alpha", "Promoción Tienda Beta") in customer receipts and admin dashboards.  
+- Reserve "global" coupons for explicitly flagged cases; apply them after per-store passes to avoid leaking one seller's budget into another's order.
+- Buyer dashboards now receive a `sellerUpgrade` payload (via `verifyMe`) whenever the user role is `buyer`. This includes headline, copy, and CTA URL (defaults to `${CLIENT_URL}/seller/onboarding` or `SELLER_ONBOARDING_URL` if set) so the frontend can surface a "Convertirme en vendedor" action strategically. When a seller has already started onboarding, the payload flips to a pending-review message instead of the CTA.
+
+### 7.4 Favoritos de usuarios
+- Nuevo modelo `Favorite` (`userId`, `productId`, `createdAt`) con `@@unique([userId, productId])` y cascada al eliminar usuarios/productos. Cada `Product` mantiene `favoritesCount` para ordenamientos rápidos.
+- Endpoints protegidos con `routeProtector()`:  
+  - `GET /api/favorites` devuelve la lista paginada (`paginate`) con producto resumido y `isFavorite = true`.  
+  - `POST /api/favorites/:productId` valida visibilidad (`Product.status = active` y `Store` activa) y usa transacción para crear el registro e incrementar `favoritesCount`.  
+  - `DELETE /api/favorites/:productId` borra el favorito existente y decrementa el contador en la misma transacción.
+- Los catálogos (`getAllProducts`, búsquedas, destacados, relacionados, `getProductById`) ahora marcan `isFavorite` cuando el requester está autenticado. Helpers reutilizan `findFavoriteProductIds` para resolver lotes en una sola consulta.
+- Seed: el usuario comprador (`buyer@gmail.com`) obtiene dos productos favoritos de ejemplo para poblar vistas iniciales.
+
+### 7.5 Direcciones de envío de usuarios
+- El modelo `UserAddress` guarda la estructura `ShippingAddress` (`country`, `state`, `city`, `postalCode`, `street`, `note`) junto con una etiqueta opcional y un flag `isDefault`.
+- Rutas protegidas:
+  - `GET /api/addresses` lista las direcciones del usuario autenticado (ordenadas con la predeterminada primero).
+  - `POST /api/addresses` crea una nueva dirección; si es la primera o se envía `isDefault=true`, mantiene una sola predeterminada.
+  - `PATCH /api/addresses/{id}` permite actualizar la etiqueta/dirección y redefinir la predeterminada.
+  - `DELETE /api/addresses/{id}` elimina la dirección; si era la predeterminada, la API promueve la más antigua restante como nueva default.
+- El seed genera dos direcciones iniciales para el comprador demo (casa/oficina) y marca “Casa” como predeterminada.
 
 ## 8. Troubleshooting
 - **"Invalid environment configuration" on startup**: Check `src/config/env.ts` for required keys; the console logs a map of missing/invalid fields. Ensure `.env` strings are quoted and free of stray spaces.
 - **`P1001`/database connection errors**: Verify PostgreSQL is reachable at `DATABASE_URL`, the server is running, and your IP/SSL settings align. Running `bunx prisma db pull` can confirm connectivity.
 - **401 responses despite valid JWTs**: The global `apiKeyGuard` still requires Basic auth. Confirm the client sends `Authorization: Basic ...` alongside cookies.
 - **OpenAPI page returns 500**: Regenerate the merged spec with `bun run openapi:build` and ensure every fragment contains valid JSON.
-- **Image upload failures**: Confirm the `uploads/` directory exists and Bun has permission to write. On Windows, unblock Sharp native binaries if SmartScreen intervenes.
+- **Nueva ruta/tag no aparece en `/docs`**: Aun después de regenerar la spec, debes reiniciar `bun run dev`/`bun run start`; `src/app.ts` cachea `openapi.json` en la primera lectura.
+- **Image upload failures**: Confirm the `uploads/` directory exists and Bun has permission to write. On Windows, unblock Sharp native binaries if SmartScreen intervenes. If deletions seem stuck, inspect `uploads/.delete-queue.json`—entries there retry on next process start and include the last error message.
 - **Prisma client out of date**: After editing `schema.prisma`, rerun `bunx prisma generate` and restart the dev server to avoid missing model methods.
 
 ## 9. References

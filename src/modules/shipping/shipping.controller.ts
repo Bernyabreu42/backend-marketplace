@@ -84,7 +84,8 @@ export const createShippingMethod = async (req: Request, res: Response) => {
   try {
     // The user and their storeId are expected to be on the request object
     // This is populated by the routeProtector middleware
-    const storeId = req.user?.storeId;
+    const storeId = req.user?.store?.id;
+    // console.log({req:req.user})
 
     if (!storeId) {
       res.status(403).json(
@@ -96,6 +97,7 @@ export const createShippingMethod = async (req: Request, res: Response) => {
     }
 
     const parsed = CreateShippingMethodSchema.safeParse(req.body);
+    console.log(req.body)
     if (!parsed.success) {
       res.status(400).json(
         ApiResponse.error({
@@ -138,7 +140,7 @@ export const createShippingMethod = async (req: Request, res: Response) => {
 export const updateShippingMethod = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const storeId = req.user?.storeId;
+    const storeId =  req.user?.store?.id;
 
     const validId = IdSchema.safeParse(id);
     if (!validId.success) {
@@ -214,7 +216,7 @@ export const updateShippingMethod = async (req: Request, res: Response) => {
 export const deleteShippingMethod = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const storeId = req.user?.storeId;
+    const storeId =  req.user?.store?.id;
     const userId = req.user?.id;
 
     const validId = IdSchema.safeParse(id);

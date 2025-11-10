@@ -6,6 +6,8 @@ const files = [
   "src/openapi/user.json",
   "src/openapi/upload.json",
   "src/openapi/products.json",
+  "src/openapi/favorites.json",
+  "src/openapi/addresses.json",
   "src/openapi/reviews.json",
   "src/openapi/category.json",
   "src/openapi/stores.json",

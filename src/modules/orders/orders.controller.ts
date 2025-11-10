@@ -1,4 +1,4 @@
-import type { Request, Response } from "express";
+﻿import type { Request, Response } from "express";
 
 import { RolesEnum } from "../../core/enums";
 import { ApiPaginatedResponse } from "../../core/responses/ApiPaginatedResponse";
@@ -13,7 +13,17 @@ import {
   UpdateOrderStatusSchema,
 } from "./validator";
 import type { OrderItem, OrderStatus } from "@prisma/client";
-import { notifyOrderStatusChange } from "../../core/services/notificationService";
+import {
+  applyProductDiscounts,
+  calculateCartTotals,
+  calculateProductTax,
+  roundCurrency,
+  type CouponRule,
+  type ProductDiscountRule,
+  type ProductPricingResult,
+  type TaxRule,
+} from "./pricing-engine";
+import { notifyOrderStatusChange, notifyOrderCreated } from "../../core/services/notificationService";
 
 const mapValidationError = (result: any) => {
   if (result.success) return null;
@@ -54,6 +64,16 @@ const ORDER_INCLUDE = {
       firstName: true,
       lastName: true,
       email: true,
+      phone: true
+    },
+  },
+  shippingMethod: {
+    select: {
+      id: true,
+      name: true,
+      description: true,
+      cost: true,
+      status: true,
     },
   },
 } as const;
@@ -369,6 +389,26 @@ export const createOrder = async (req: Request, res: Response) => {
         throw new Error("La tienda indicada no existe");
       }
 
+      let selectedShippingMethod: { id: string; cost: number } | null = null;
+
+      if (payload?.shippingMethodId) {
+        const shippingMethod = await tx.shippingMethod.findFirst({
+          where: {
+            id: payload.shippingMethodId,
+            storeId: payload.storeId,
+            isDeleted: false,
+            status: "active",
+          },
+          select: { id: true, cost: true },
+        });
+
+        if (!shippingMethod) {
+          throw new Error("El método de envío seleccionado ya no está disponible.");
+        }
+
+        selectedShippingMethod = shippingMethod;
+      }
+
       const productIds = payload?.items.map((item) => item.productId);
       const products = await tx.product.findMany({
         where: { id: { in: productIds } },
@@ -385,6 +425,21 @@ export const createOrder = async (req: Request, res: Response) => {
               id: true,
               name: true,
               type: true,
+              value: true,
+              status: true,
+            },
+          },
+          taxes: {
+            select: {
+              tax: {
+                select: {
+                  id: true,
+                  name: true,
+                  type: true,
+                  rate: true,
+                  status: true,
+                },
+              },
             },
           },
         },
@@ -398,8 +453,7 @@ export const createOrder = async (req: Request, res: Response) => {
         products.map((product) => [product.id, product])
       );
 
-      let subtotal = 0;
-      let productDiscountTotal = 0;
+      const precision = 2;
       const orderItemsData: Array<{
         productId: string;
         quantity: number;
@@ -408,10 +462,7 @@ export const createOrder = async (req: Request, res: Response) => {
         lineSubtotal: number;
         lineDiscount: number;
       }> = [];
-      const discountAdjustments = new Map<
-        string,
-        { type: string; name: string; amount: number; discountId?: string }
-      >();
+      const productCalculations: ProductPricingResult[] = [];
 
       for (const item of payload?.items) {
         const product = productMap.get(item.productId);
@@ -431,54 +482,142 @@ export const createOrder = async (req: Request, res: Response) => {
           );
         }
 
+        const quantity = item.quantity;
         const unitPrice = product.price ?? 0;
-        const unitPriceFinal = product.priceFinal ?? unitPrice;
-        const lineSubtotal = unitPrice * item.quantity;
-        const lineDiscount =
-          Math.max(unitPrice - unitPriceFinal, 0) * item.quantity;
+        const lineBaseAmount = roundCurrency(unitPrice * quantity, precision);
 
-        subtotal += lineSubtotal;
-        productDiscountTotal += lineDiscount;
-
-        if (lineDiscount > 0 && product.discount) {
-          const key = product.discount.id;
-          const current = discountAdjustments.get(key) ?? {
-            type: "discount",
-            name: product.discount.name,
-            amount: 0,
-            discountId: product.discount.id,
-          };
-          current.amount += lineDiscount;
-          discountAdjustments.set(key, current);
+        const discountRules: ProductDiscountRule[] = [];
+        if (
+          product.discount &&
+          product.discount.status === "active" &&
+          typeof product.discount.value === "number" &&
+          product.discount.value > 0
+        ) {
+          discountRules.push({
+            id: product.discount.id,
+            label: product.discount.name,
+            type: product.discount.type,
+            value: product.discount.value,
+          });
+        } else if (
+          product.priceFinal !== null &&
+          product.priceFinal !== undefined &&
+          product.priceFinal < unitPrice
+        ) {
+          const difference = roundCurrency(unitPrice - product.priceFinal, precision);
+          if (difference > 0) {
+            discountRules.push({
+              type: "fixed",
+              value: difference,
+              label: "Ajuste manual",
+            });
+          }
         }
+
+        const discountResult = applyProductDiscounts({
+          productId: product.id,
+          storeId: product.storeId,
+          basePrice: unitPrice,
+          quantity,
+          discounts: discountRules,
+          precision,
+        });
+
+        const unitNetPrice = discountResult.unitPrice;
+        const lineDiscountTotal = roundCurrency(
+          discountResult.discountTotal * quantity,
+          precision
+        );
+        const lineNetAmount = roundCurrency(
+          Math.max(lineBaseAmount - lineDiscountTotal, 0),
+          precision
+        );
+
+        const taxRules: TaxRule[] =
+          product.taxes
+            ?.map((itemTax) => {
+              const tax = itemTax.tax;
+              if (!tax) return null;
+              if (tax.status !== "active") return null;
+              return {
+                id: tax.id,
+                label: tax.name,
+                type: tax.type,
+                rate: tax.rate,
+              } as TaxRule;
+            })
+            .filter((rule): rule is TaxRule => Boolean(rule)) ?? [];
+
+        const taxResult = calculateProductTax({
+          productId: product.id,
+          storeId: product.storeId,
+          basePrice: unitNetPrice,
+          unitNetPrice,
+          quantity,
+          taxes: taxRules,
+          precision,
+        });
+
+        const lineTaxAmount = roundCurrency(taxResult.taxTotal, precision);
+        const lineTotal = roundCurrency(lineNetAmount + lineTaxAmount, precision);
+
+        const discountAdjustments = discountResult.adjustments.map((adjustment) => ({
+          ...adjustment,
+          amount: roundCurrency(adjustment.amount * quantity, precision),
+        }));
+
+        const taxAdjustments = taxResult.adjustments.map((adjustment) => ({
+          ...adjustment,
+          amount: roundCurrency(adjustment.amount * quantity, precision),
+        }));
+
+        productCalculations.push({
+          productId: product.id,
+          storeId: product.storeId,
+          quantity,
+          unitBasePrice: unitPrice,
+          lineBaseAmount,
+          unitPriceAfterDiscounts: unitNetPrice,
+          unitTaxAmount: roundCurrency(taxResult.unitTax, precision),
+          lineNetAmount,
+          lineTaxAmount,
+          lineTotal,
+          discountTotal: lineDiscountTotal,
+          taxTotal: lineTaxAmount,
+          discountAdjustments,
+          taxAdjustments,
+        });
 
         orderItemsData.push({
           productId: item.productId,
-          quantity: item.quantity,
+          quantity,
           unitPrice,
-          unitPriceFinal,
-          lineSubtotal,
-          lineDiscount,
+          unitPriceFinal: unitNetPrice,
+          lineSubtotal: lineBaseAmount,
+          lineDiscount: lineDiscountTotal,
         });
       }
 
-      if (subtotal <= 0) {
+      const netSubtotal = roundCurrency(
+        productCalculations.reduce((sum, item) => sum + item.lineNetAmount, 0),
+        precision
+      );
+
+      if (netSubtotal <= 0) {
         throw new Error("El total de la orden debe ser mayor a cero");
       }
 
-      // --- Lógica de Promoción y Cálculo Final ---
-      let promotionDiscount = 0;
-      let finalPromotionId: string | undefined = undefined;
-      let promotionCodeUsed: string | undefined = undefined;
-      const priceAdjustments: Array<Record<string, unknown>> = Array.from(
-        discountAdjustments.values()
-      );
+      // --- Motor de promociones y totales ---
+      let promotionRule: CouponRule | null = null;
+      let finalPromotionId: string | undefined;
+      let promotionCodeUsed: string | undefined;
 
       if (payload?.promotionCode) {
         const promotion = await tx.promotion.findFirst({
           where: {
-            code: payload?.promotionCode,
+            code: payload.promotionCode,
             status: "active",
+            storeId: payload.storeId,
             startsAt: { lte: new Date() },
             endsAt: { gte: new Date() },
           },
@@ -487,33 +626,85 @@ export const createOrder = async (req: Request, res: Response) => {
             value: true,
             code: true,
             name: true,
+            type: true,
           },
         });
 
-        if (!promotion) {
-          throw new Error("El código de promoción no es válido o ha expirado.");
+        if (!promotion || !promotion.value || promotion.value <= 0) {
+          throw new Error("El codigo de promocion no es valido o ha expirado.");
         }
 
-        // Asumimos que las promociones de cupón son porcentuales por ahora
-        if (promotion.value && promotion.value > 0) {
-          promotionDiscount = (subtotal * promotion.value) / 100;
-          finalPromotionId = promotion.id;
-          promotionCodeUsed = promotion.code ?? payload.promotionCode;
-          priceAdjustments.push({
-            type: "promotion",
-            code: promotionCodeUsed,
-            name: promotion.name,
-            amount: promotionDiscount,
+        if (promotion.type === "coupon") {
+          const alreadyUsed = await tx.order.count({
+            where: {
+              userId: targetUserId,
+              promotionId: promotion.id,
+            },
           });
+
+          if (alreadyUsed > 0) {
+            throw new Error("Ya utilizaste este cupon en una orden anterior.");
+          }
         }
+
+        finalPromotionId = promotion.id;
+        promotionCodeUsed = promotion.code ?? payload.promotionCode;
+        promotionRule = {
+          id: promotion.id,
+          code: promotionCodeUsed,
+          type: "percentage",
+          value: promotion.value,
+          scope: "store",
+          metadata: {
+            name: promotion.name,
+            promotionType: promotion.type,
+          },
+        };
       }
 
-      // TODO: Lógica para calcular taxAmount y shippingAmount
-      const taxAmount = 0;
-      const shippingAmount = 0;
+      const shippingCharge = selectedShippingMethod?.cost ?? 0;
 
-      const totalDiscountAmount = productDiscountTotal + promotionDiscount;
-      const total = subtotal - totalDiscountAmount + taxAmount + shippingAmount;
+      const cartTotals = calculateCartTotals({
+        stores: [
+          {
+            storeId: payload.storeId,
+            items: productCalculations,
+            coupon: promotionRule,
+            discounts: [],
+            shippingAmount: shippingCharge,
+            precision,
+          },
+        ],
+        promotions: [],
+        precision,
+      });
+
+      const storeTotals = cartTotals.stores[0];
+
+      const subtotal = roundCurrency(
+        productCalculations.reduce((sum, item) => sum + item.lineBaseAmount, 0),
+        precision
+      );
+      const productDiscountTotal = roundCurrency(
+        productCalculations.reduce((sum, item) => sum + item.discountTotal, 0),
+        precision
+      );
+      const storeDiscountTotal = roundCurrency(storeTotals.discountTotal, precision);
+      const promotionsTotal = roundCurrency(cartTotals.promotionsTotal, precision);
+
+      const taxAmount = roundCurrency(cartTotals.taxTotal, precision);
+      const shippingAmount = roundCurrency(storeTotals.shippingAmount, precision);
+      const totalDiscountAmount = roundCurrency(
+        productDiscountTotal + storeDiscountTotal + promotionsTotal,
+        precision
+      );
+      const total = roundCurrency(cartTotals.total, precision);
+      const priceAdjustments = cartTotals.adjustments
+        .map((adjustment) => ({
+          ...adjustment,
+          amount: roundCurrency(adjustment.amount, precision),
+        }))
+        .filter((adjustment) => adjustment.amount !== 0);
 
       // Actualizar stock
       for (const item of payload?.items) {
@@ -535,7 +726,7 @@ export const createOrder = async (req: Request, res: Response) => {
           total,
           status: "pending",
           shippingAddress: payload?.shippingAddress ?? undefined,
-          shippingMethod: payload?.shippingMethod ?? undefined,
+          shippingMethodId: selectedShippingMethod?.id ?? undefined,
           promotionId: finalPromotionId,
           promotionCodeUsed,
           priceAdjustments:
@@ -549,6 +740,13 @@ export const createOrder = async (req: Request, res: Response) => {
 
       return created;
     });
+
+    notifyOrderCreated(order).catch((error) =>
+      console.error(
+        "[mail] No se pudo enviar la confirmacion de orden",
+        error
+      )
+    );
 
     res.status(201).json(
       ApiResponse.success({

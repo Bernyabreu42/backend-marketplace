@@ -14,10 +14,8 @@ import {
   resolveRequester,
 } from "./services/visibility.service";
 import {
-  applyTaxesToPrice,
   computePriceWithDiscount,
   findApplicableDiscount,
-  findStoreTaxesByIds,
   type DiscountSummary,
 } from "./services/pricing.service";
 import {
@@ -737,12 +735,7 @@ export const createProduct = async (req: Request, res: Response) => {
       return;
     }
 
-    const {
-      categories = [],
-      taxes: taxIds = [],
-      discountId,
-      ...data
-    } = parsed.data;
+    const { categories = [], taxes = [], discountId, ...data } = parsed.data;
 
     // Validar tienda y ownership
     const store = await prisma.store.findUnique({
@@ -778,26 +771,7 @@ export const createProduct = async (req: Request, res: Response) => {
       }
     }
 
-    const normalizedTaxIds = Array.from(new Set(taxIds));
-
-    const taxesForPrice = await findStoreTaxesByIds(store.id, normalizedTaxIds);
-    if (taxesForPrice.length !== normalizedTaxIds.length) {
-      const found = new Set(taxesForPrice.map((tax) => tax.id));
-      const missing = normalizedTaxIds.filter((id) => !found.has(id));
-      res.status(400).json(
-        ApiResponse.error({
-          message: "Algunos impuestos no son válidos para esta tienda",
-          error: { missingTaxIds: missing },
-        })
-      );
-      return;
-    }
-
-    const discountedPrice = computePriceWithDiscount(
-      data.price,
-      applicableDiscount
-    );
-    const finalPrice = applyTaxesToPrice(discountedPrice, taxesForPrice);
+    const finalPrice = computePriceWithDiscount(data.price, applicableDiscount);
 
     // Crear producto + relaciones (categorías M:N y taxes vía tabla puente)
     const product = await prisma.product.create({
@@ -812,12 +786,8 @@ export const createProduct = async (req: Request, res: Response) => {
               },
             }
           : {}),
-        ...(normalizedTaxIds.length
-          ? {
-              taxes: {
-                create: normalizedTaxIds.map((taxId: string) => ({ taxId })),
-              },
-            }
+        ...(taxes.length
+          ? { taxes: { create: taxes.map((taxId: string) => ({ taxId })) } }
           : {}),
       },
       include: {
@@ -974,12 +944,7 @@ export const updateProduct = async (req: Request, res: Response) => {
 
   const existing = await prisma.product.findUnique({
     where: { id },
-    include: {
-      store: true,
-      taxes: {
-        include: { tax: true },
-      },
-    },
+    include: { store: true },
   });
 
   if (!existing) {
@@ -1065,43 +1030,7 @@ export const updateProduct = async (req: Request, res: Response) => {
 
     finalDiscountId = discountInfo?.id ?? finalDiscountId ?? null;
 
-    let taxesForPrice: Awaited<ReturnType<typeof findStoreTaxesByIds>> = [];
-    if (Array.isArray(taxIds)) {
-      const normalizedTaxIds = Array.from(
-        new Set(
-          taxIds.filter((taxId): taxId is string => typeof taxId === "string")
-        )
-      );
-
-      if (normalizedTaxIds.length > 0) {
-        taxesForPrice = await findStoreTaxesByIds(
-          existing.storeId,
-          normalizedTaxIds
-        );
-
-        if (taxesForPrice.length !== normalizedTaxIds.length) {
-          const found = new Set(taxesForPrice.map((tax) => tax.id));
-          const missing = normalizedTaxIds.filter((id) => !found.has(id));
-          res.status(400).json(
-            ApiResponse.error({
-              message: "Algunos impuestos no son válidos para esta tienda",
-              error: { missingTaxIds: missing },
-            })
-          );
-          return;
-        }
-      }
-    } else {
-      taxesForPrice =
-        existing.taxes?.map((productTax) => ({
-          id: productTax.tax.id,
-          type: productTax.tax.type,
-          rate: productTax.tax.rate,
-        })) ?? [];
-    }
-
-    const discountedPrice = computePriceWithDiscount(basePrice, discountInfo);
-    const finalPrice = applyTaxesToPrice(discountedPrice, taxesForPrice);
+    const finalPrice = computePriceWithDiscount(basePrice, discountInfo);
 
     const updated = await prisma.$transaction(async (tx) => {
       const payload: Record<string, unknown> = {

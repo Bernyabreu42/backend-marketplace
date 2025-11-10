@@ -16,15 +16,18 @@ export const AddressSchema = z
   })
   .passthrough();
 
-export const CreateAddressSchema = AddressSchema.extend({
-  label: z
-    .string()
-    .trim()
-    .min(1, "La etiqueta no puede estar vacía")
-    .max(100, "La etiqueta es demasiado larga")
-    .optional(),
-  isDefault: z.boolean().optional(),
-});
+export const CreateAddressSchema = AddressSchema.merge(
+  z.object({
+    label: z
+      .string()
+      .trim()
+      .min(1, "La etiqueta no puede estar vacía")
+      .max(100, "La etiqueta es demasiado larga")
+      .optional(),
+    isDefault: z.boolean().optional(),
+    address: AddressSchema.optional(),
+  })
+);
 
 export const UpdateAddressSchema = z
   .object({
@@ -37,11 +40,19 @@ export const UpdateAddressSchema = z
     address: AddressSchema.optional(),
     isDefault: z.boolean().optional(),
   })
+  .merge(AddressSchema.partial())
   .superRefine((data, ctx) => {
+    const hasTopLevelAddress = Object.keys(data).some((key) =>
+      ["country", "state", "city", "postalCode", "street", "apartment", "reference", "note", "notes", "phone", "recipientName", "contactName"].includes(
+        key
+      )
+    );
+
     if (
       typeof data.label === "undefined" &&
       typeof data.address === "undefined" &&
-      typeof data.isDefault === "undefined"
+      typeof data.isDefault === "undefined" &&
+      !hasTopLevelAddress
     ) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,

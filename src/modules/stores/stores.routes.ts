@@ -6,6 +6,7 @@ import {
   deleteStore,
   getAllStores,
   getFeaturedStores,
+  getPublicStores,
   getStore,
   restoreStore,
   updateStore,
@@ -19,9 +20,11 @@ const router = Router();
 
 router.post("/create", routeProtector([RolesEnum.BUYER]), createStore);
 
+router.get("/", getPublicStores);
+
 router.get(
   "/all",
-  // routeProtector([RolesEnum.ADMIN, RolesEnum.SUPPORT]),
+  routeProtector([RolesEnum.ADMIN, RolesEnum.SUPPORT]),
   getAllStores
 );
 

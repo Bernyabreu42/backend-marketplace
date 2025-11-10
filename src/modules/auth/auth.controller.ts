@@ -32,6 +32,9 @@ const mapUserPayload = (user: {
   id: string;
   email: string;
   username: string | null;
+      firstName: string,
+              lastName: string,
+              phone: string,
   status: string;
   emailVerified: boolean;
   isOnline: boolean;
@@ -81,6 +84,9 @@ const mapUserPayload = (user: {
     id: user.id,
     email: user.email,
     username: user.username,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    phone: user.phone,
     status: user.status,
     emailVerified: user.emailVerified,
     isOnline: user.isOnline,
@@ -107,6 +113,23 @@ const clearRefreshTokenCookie = (({ maxAge, ...rest }) => rest)(
   refreshTokenCookie
 );
 
+const extractClientIp = (req: Request): string | undefined => {
+  const forwarded = req.headers["x-forwarded-for"];
+  if (typeof forwarded === "string" && forwarded.trim()) {
+    return forwarded.split(",")[0]?.trim();
+  }
+  if (Array.isArray(forwarded) && forwarded.length > 0) {
+    return forwarded[0];
+  }
+  return req.ip;
+};
+
+const extractUserAgent = (req: Request): string | undefined => {
+  const header = req.headers["user-agent"];
+  if (Array.isArray(header)) return header[0];
+  return header ?? undefined;
+};
+
 export const verifyMe = async (req: Request, res: Response) => {
   const accessToken = req.cookies?.accessToken;
   const refreshToken = req.cookies?.refreshToken;
@@ -124,6 +147,9 @@ export const verifyMe = async (req: Request, res: Response) => {
               id: true,
               email: true,
               username: true,
+              firstName: true,
+              lastName: true,
+              phone: true,
               status: true,
               emailVerified: true,
               isOnline: true,
@@ -138,7 +164,7 @@ export const verifyMe = async (req: Request, res: Response) => {
             res.status(200).json(
               ApiResponse.success({
                 message: "Usuario autenticado",
-                data: mapUserPayload(user),
+                data: mapUserPayload(user as any),
               })
             );
             return;
@@ -198,6 +224,7 @@ export const verifyMe = async (req: Request, res: Response) => {
         where: { id: session.id },
         data: { revoked: true, revokedAt: new Date() },
       }),
+
       prisma.session.create({
         data: {
           userId: session.userId,
@@ -225,6 +252,9 @@ export const verifyMe = async (req: Request, res: Response) => {
             id: session.user.id,
             email: session.user.email,
             username: session.user.username,
+            firstName: session.user.firstName,
+            lastName: session.user.lastName,
+            phone: session.user.phone,
             status: session.user.status,
             emailVerified: session.user.emailVerified,
           },
@@ -373,7 +403,10 @@ export const loginUser = async (req: Request, res: Response) => {
     }
 
     // crea sesión (refresh) y access
-    const refreshToken = await createSession(user.id);
+    const refreshToken = await createSession(user.id, {
+      userAgent: extractUserAgent(req),
+      ip: extractClientIp(req),
+    });
     const accessToken = generateAccessToken({ id: user.id });
 
     // presencia

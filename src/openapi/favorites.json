@@ -1,0 +1,267 @@
+{
+  "paths": {
+    "/api/favorites": {
+      "get": {
+        "tags": ["Favorites"],
+        "summary": "Listar favoritos del usuario autenticado",
+        "security": [
+          {
+            "basicAuth": [],
+            "accessCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 10
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Listado paginado de favoritos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FavoriteListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Autenticación requerida"
+          }
+        }
+      }
+    },
+    "/api/favorites/{productId}": {
+      "post": {
+        "tags": ["Favorites"],
+        "summary": "Agregar producto a favoritos",
+        "security": [
+          {
+            "basicAuth": [],
+            "accessCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Agregado correctamente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FavoriteMessageResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ID inválido"
+          },
+          "401": {
+            "description": "Autenticación requerida"
+          },
+          "404": {
+            "description": "Producto no disponible"
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Favorites"],
+        "summary": "Eliminar producto de favoritos",
+        "security": [
+          {
+            "basicAuth": [],
+            "accessCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Eliminado correctamente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FavoriteMessageResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ID inválido"
+          },
+          "401": {
+            "description": "Autenticación requerida"
+          },
+          "404": {
+            "description": "Favorito no encontrado"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "FavoriteProduct": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "price": {
+            "type": "number",
+            "format": "float"
+          },
+          "priceFinal": {
+            "type": "number",
+            "format": "float"
+          },
+          "images": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "inactive",
+              "draft",
+              "out_of_stock"
+            ]
+          },
+          "favoritesCount": {
+            "type": "integer",
+            "example": 42
+          },
+          "isFavorite": {
+            "type": "boolean",
+            "example": true,
+            "description": "Siempre true en el contexto de favoritos"
+          },
+          "store": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "pending",
+                  "active",
+                  "inactive",
+                  "banned",
+                  "deleted"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "FavoriteItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "productId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "product": {
+            "$ref": "#/components/schemas/FavoriteProduct"
+          }
+        }
+      },
+      "FavoriteListResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "example": "Favoritos"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FavoriteItem"
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationMeta"
+          }
+        }
+      },
+      "FavoriteMessageResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "example": "Producto agregado a favoritos"
+          }
+        }
+      }
+    }
+  }
+}

@@ -20,7 +20,16 @@ export const updateStoreSchema = z.object({
   description: z.string().optional(),
   email: z.string().email().optional(),
   phone: z.string().optional(),
-  address: z.string().optional(),
+  address: z
+    .object({
+      country: z.string().optional(),
+      city: z.string().optional(),
+      state: z.string().optional(),
+      postalCode: z.string().optional(),
+      street: z.string().optional(),
+      note: z.string().optional(),
+    })
+    .optional(),
   website: z.string().url().optional(),
   logo: z.string().optional(),
   banner: z.string().optional(),

@@ -1292,6 +1292,55 @@
         }
       }
     },
+    "/api/products/featured": {
+      "get": {
+        "tags": [
+          "Products"
+        ],
+        "summary": "Productos destacados",
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "default": 12
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Listado de productos destacados",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductListResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No autorizado"
+          }
+        }
+      }
+    },
     "/api/products/{id}/related": {
       "get": {
         "tags": [
@@ -1379,6 +1428,432 @@
           },
           "404": {
             "description": "Producto no encontrado"
+          }
+        }
+      }
+    },
+    "/api/products/search": {
+      "get": {
+        "tags": [
+          "Products"
+        ],
+        "summary": "Buscar productos en el marketplace",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "description": "Termino de busqueda (minimo 2 caracteres)",
+            "schema": {
+              "type": "string",
+              "minLength": 2
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 30,
+              "default": 10
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Listado de coincidencias",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductSearchResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Parametros invalidos"
+          }
+        }
+      }
+    },
+    "/api/products/store/{storeId}/search": {
+      "get": {
+        "tags": [
+          "Products"
+        ],
+        "summary": "Buscar productos por tienda",
+        "parameters": [
+          {
+            "name": "storeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "description": "Termino de busqueda (minimo 2 caracteres)",
+            "schema": {
+              "type": "string",
+              "minLength": 2
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 30,
+              "default": 10
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Listado de coincidencias",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductSearchResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Parametros invalidos"
+          },
+          "404": {
+            "description": "Tienda no disponible"
+          }
+        }
+      }
+    },
+    "/api/favorites": {
+      "get": {
+        "tags": [
+          "Favorites"
+        ],
+        "summary": "Listar favoritos del usuario autenticado",
+        "security": [
+          {
+            "basicAuth": [],
+            "accessCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 10
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Listado paginado de favoritos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FavoriteListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Autenticación requerida"
+          }
+        }
+      }
+    },
+    "/api/favorites/{productId}": {
+      "post": {
+        "tags": [
+          "Favorites"
+        ],
+        "summary": "Agregar producto a favoritos",
+        "security": [
+          {
+            "basicAuth": [],
+            "accessCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Agregado correctamente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FavoriteMessageResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ID inválido"
+          },
+          "401": {
+            "description": "Autenticación requerida"
+          },
+          "404": {
+            "description": "Producto no disponible"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Favorites"
+        ],
+        "summary": "Eliminar producto de favoritos",
+        "security": [
+          {
+            "basicAuth": [],
+            "accessCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Eliminado correctamente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FavoriteMessageResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ID inválido"
+          },
+          "401": {
+            "description": "Autenticación requerida"
+          },
+          "404": {
+            "description": "Favorito no encontrado"
+          }
+        }
+      }
+    },
+    "/api/addresses": {
+      "get": {
+        "tags": [
+          "Addresses"
+        ],
+        "summary": "Listar direcciones de envío del usuario",
+        "security": [
+          {
+            "basicAuth": [],
+            "accessCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Listado de direcciones",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserAddressListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Autenticación requerida"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Addresses"
+        ],
+        "summary": "Crear una nueva dirección de envío",
+        "security": [
+          {
+            "basicAuth": [],
+            "accessCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserAddressCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Dirección creada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserAddressResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Datos inválidos"
+          },
+          "401": {
+            "description": "Autenticación requerida"
+          }
+        }
+      }
+    },
+    "/api/addresses/{id}": {
+      "patch": {
+        "tags": [
+          "Addresses"
+        ],
+        "summary": "Actualizar una dirección de envío",
+        "security": [
+          {
+            "basicAuth": [],
+            "accessCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserAddressUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Dirección actualizada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserAddressResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Datos inválidos"
+          },
+          "401": {
+            "description": "Autenticación requerida"
+          },
+          "404": {
+            "description": "Dirección no encontrada"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Addresses"
+        ],
+        "summary": "Eliminar una dirección de envío",
+        "security": [
+          {
+            "basicAuth": [],
+            "accessCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Dirección eliminada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Autenticación requerida"
+          },
+          "404": {
+            "description": "Dirección no encontrada"
           }
         }
       }
@@ -5070,6 +5545,15 @@
               "out_of_stock"
             ]
           },
+          "favoritesCount": {
+            "type": "integer",
+            "example": 12
+          },
+          "isFavorite": {
+            "type": "boolean",
+            "example": false,
+            "description": "Indica si el producto forma parte de los favoritos del usuario autenticado"
+          },
           "storeId": {
             "type": "string",
             "format": "uuid"
@@ -5337,6 +5821,360 @@
           "message": {
             "type": "string",
             "example": "Promoción eliminada"
+          }
+        }
+      },
+      "ProductSearchResult": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "price": {
+            "type": "number",
+            "format": "float"
+          },
+          "priceFinal": {
+            "type": "number",
+            "format": "float"
+          },
+          "images": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "stock": {
+            "type": "integer"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "inactive",
+              "draft",
+              "out_of_stock"
+            ]
+          },
+          "store": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "pending",
+                  "active",
+                  "inactive",
+                  "banned",
+                  "deleted"
+                ]
+              }
+            }
+          },
+          "favoritesCount": {
+            "type": "integer",
+            "example": 12
+          },
+          "isFavorite": {
+            "type": "boolean",
+            "example": false
+          },
+          "sku": {
+            "type": "string"
+          }
+        }
+      },
+      "ProductSearchResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "example": "Resultados de busqueda"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProductSearchResult"
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationMeta"
+          }
+        }
+      },
+      "FavoriteProduct": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "price": {
+            "type": "number",
+            "format": "float"
+          },
+          "priceFinal": {
+            "type": "number",
+            "format": "float"
+          },
+          "images": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "inactive",
+              "draft",
+              "out_of_stock"
+            ]
+          },
+          "favoritesCount": {
+            "type": "integer",
+            "example": 42
+          },
+          "isFavorite": {
+            "type": "boolean",
+            "example": true,
+            "description": "Siempre true en el contexto de favoritos"
+          },
+          "store": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "pending",
+                  "active",
+                  "inactive",
+                  "banned",
+                  "deleted"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "FavoriteItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "productId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "product": {
+            "$ref": "#/components/schemas/FavoriteProduct"
+          }
+        }
+      },
+      "FavoriteListResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "example": "Favoritos"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FavoriteItem"
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationMeta"
+          }
+        }
+      },
+      "FavoriteMessageResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "example": "Producto agregado a favoritos"
+          }
+        }
+      },
+      "ShippingAddress": {
+        "type": "object",
+        "properties": {
+          "country": {
+            "type": "string",
+            "example": "Dominican Republic"
+          },
+          "state": {
+            "type": "string",
+            "example": "Distrito Nacional"
+          },
+          "city": {
+            "type": "string",
+            "example": "Santo Domingo"
+          },
+          "postalCode": {
+            "type": "string",
+            "example": "10101"
+          },
+          "street": {
+            "type": "string",
+            "example": "Calle Las Palmeras #123"
+          },
+          "note": {
+            "type": "string",
+            "example": "Portón azul, tocar dos veces",
+            "nullable": true
+          }
+        },
+        "required": [
+          "country",
+          "state",
+          "city",
+          "postalCode",
+          "street"
+        ]
+      },
+      "UserAddress": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "label": {
+            "type": "string",
+            "nullable": true
+          },
+          "address": {
+            "$ref": "#/components/schemas/ShippingAddress"
+          },
+          "isDefault": {
+            "type": "boolean",
+            "example": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "UserAddressCreateRequest": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string",
+            "example": "Casa"
+          },
+          "address": {
+            "$ref": "#/components/schemas/ShippingAddress"
+          },
+          "isDefault": {
+            "type": "boolean",
+            "example": true,
+            "description": "Si es true, esta dirección reemplaza la predeterminada actual"
+          }
+        },
+        "required": [
+          "address"
+        ]
+      },
+      "UserAddressUpdateRequest": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string",
+            "example": "Oficina"
+          },
+          "address": {
+            "$ref": "#/components/schemas/ShippingAddress"
+          },
+          "isDefault": {
+            "type": "boolean",
+            "example": true
+          }
+        }
+      },
+      "UserAddressResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "example": "Direccion creada"
+          },
+          "data": {
+            "$ref": "#/components/schemas/UserAddress"
+          }
+        }
+      },
+      "UserAddressListResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "example": "Direcciones obtenidas"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UserAddress"
+            }
           }
         }
       },
@@ -7626,6 +8464,12 @@
     },
     {
       "name": "Sessions"
+    },
+    {
+      "name": "Addresses"
+    },
+    {
+      "name": "Favorites"
     },
     {
       "name": "Loyalty",

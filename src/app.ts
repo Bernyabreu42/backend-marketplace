@@ -22,6 +22,8 @@ import ordersRoutes from "./modules/orders/orders.routes";
 import shippingRoutes from "./modules/shipping/shipping.routes";
 import blogRoutes from "./modules/blog/blog.routes";
 import reviewsRoutes from "./modules/reviews/reviews.routes";
+import favoritesRoutes from "./modules/favorites/favorites.routes";
+import addressesRoutes from "./modules/addresses/addresses.routes";
 const app = express();
 
 app.use(express.json());
@@ -77,6 +79,8 @@ app.use("/api/taxes", taxesRoutes);
 app.use("/api/shipping", shippingRoutes);
 app.use("/api/reviews", reviewsRoutes);
 app.use("/api/blog", blogRoutes);
+app.use("/api/favorites", favoritesRoutes);
+app.use("/api/addresses", addressesRoutes);
 
 app.get("*", (_req, res) => {
   res.status(404).send(ApiResponse.error({ message: "Not found" }));

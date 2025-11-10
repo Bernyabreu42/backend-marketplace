@@ -19,8 +19,6 @@ import {
 import * as sessionsController from "../../src/modules/sessions/sessions.controller";
 
 const originalUserFindUnique = prisma.user.findUnique;
-const originalSessionFindUnique = prisma.session.findUnique;
-const originalSessionDelete = prisma.session.delete;
 
 const createMockRes = () => {
   const res: any = {
@@ -45,8 +43,6 @@ const createMockRes = () => {
 
 afterEach(() => {
   (prisma.user as any).findUnique = originalUserFindUnique;
-  (prisma.session as any).findUnique = originalSessionFindUnique;
-  (prisma.session as any).delete = originalSessionDelete;
 });
 
 describe("routeProtector", () => {
@@ -88,13 +84,6 @@ describe("routeProtector", () => {
     const refreshToken = generateRefreshToken({ id: "user-2" });
     const userRecord = { id: "user-2", role: RolesEnum.ADMIN };
 
-    (prisma.session as any).findUnique = mock(async () => ({
-      refreshToken,
-      userId: "user-2",
-      revoked: false,
-      expiresAt: new Date(Date.now() + 60_000),
-    }));
-    (prisma.session as any).delete = mock(async () => {});
     const userSpy = mock(async ({ include }: any) => {
       if (include) {
         return { ...userRecord, store: null };
@@ -103,18 +92,33 @@ describe("routeProtector", () => {
     });
     (prisma.user as any).findUnique = userSpy;
 
-    const createSessionSpy = spyOn(sessionsController, "createSession").mockResolvedValue(
-      "new-refresh-token"
-    );
+    const rotateSpy = spyOn(
+      sessionsController,
+      "rotateRefreshToken"
+    ).mockResolvedValue({
+      refreshToken: "new-refresh-token",
+      expiresAt: new Date(Date.now() + 60_000),
+      session: {
+        id: "session-1",
+        userId: "user-2",
+      } as any,
+    });
 
     const middleware = routeProtector([RolesEnum.ADMIN]);
-    const req: any = { cookies: { refreshToken } };
+    const req: any = {
+      cookies: { refreshToken },
+      headers: { "user-agent": "jest-agent", "x-forwarded-for": "203.0.113.5" },
+      ip: "10.0.0.1",
+    };
     const res = createMockRes();
     const next = mock(() => {});
 
     await middleware(req, res, next);
 
-    expect(createSessionSpy).toHaveBeenCalledWith("user-2");
+    expect(rotateSpy).toHaveBeenCalledWith(refreshToken, {
+      userAgent: "jest-agent",
+      ip: "203.0.113.5",
+    });
     expect(res.cookie).toHaveBeenCalledTimes(2);
     expect(res.cookies.map((c: any) => c.name)).toEqual([
       "accessToken",
@@ -123,7 +127,7 @@ describe("routeProtector", () => {
     expect(req.user).toMatchObject(userRecord);
     expect(next).toHaveBeenCalledTimes(1);
 
-    createSessionSpy.mockRestore();
+    rotateSpy.mockRestore();
   });
 });
 

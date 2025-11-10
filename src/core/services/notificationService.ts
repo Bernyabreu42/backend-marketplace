@@ -48,6 +48,80 @@ const formatCustomerName = (firstName?: string | null, fallback?: string) => {
   return "Cliente";
 };
 
+const formatCurrency = (value: number) =>
+  new Intl.NumberFormat("es-DO", {
+    style: "currency",
+    currency: "DOP",
+  }).format(value || 0);
+
+const formatOrderDate = (date: Date | string | number) =>
+  new Intl.DateTimeFormat("es-DO", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(typeof date === "string" || typeof date === "number" ? new Date(date) : date);
+
+type OrderForNotification = {
+  id: string;
+  subtotal: number;
+  totalDiscountAmount: number;
+  taxAmount: number;
+  shippingAmount: number;
+  total: number;
+  createdAt: Date;
+  store?: { id: string; name?: string | null } | null;
+  user?: { email?: string | null; firstName?: string | null } | null;
+  items: Array<{
+    quantity: number;
+    unitPrice: number;
+    unitPriceFinal: number | null;
+    lineSubtotal: number;
+    lineDiscount: number;
+    product?: { name?: string | null } | null;
+  }>;
+};
+
+export const notifyOrderCreated = async (order: OrderForNotification): Promise<void> => {
+  const to = order.user?.email;
+  if (!to) return;
+
+  const hostname = env.CLIENT_URL ?? env.CLIENTS_URLS?.[0];
+  const orderUrl = hostname
+    ? `${hostname.replace(/\/$/, "")}/orders/${order.id}`
+    : undefined;
+
+  const items = order.items.map((item) => {
+    const unitPrice =
+      item.unitPriceFinal ?? item.unitPrice ?? item.lineSubtotal / (item.quantity || 1);
+    const lineNet = Math.max(item.lineSubtotal - (item.lineDiscount ?? 0), 0);
+
+    return {
+      name: item.product?.name ?? "Producto",
+      quantity: item.quantity,
+      unitPrice: formatCurrency(unitPrice),
+      lineTotal: formatCurrency(lineNet),
+    };
+  });
+
+  await mailService({
+    to,
+    subject: `Confirmación de tu orden #${order.id}`,
+    template: "order-confirmation",
+    data: {
+      customerName: formatCustomerName(order.user?.firstName, to),
+      orderCode: order.id,
+      orderDate: formatOrderDate(order.createdAt),
+      storeName: order.store?.name ?? "nuestra tienda",
+      items,
+      subtotal: formatCurrency(order.subtotal ?? 0),
+      discounts: formatCurrency(order.totalDiscountAmount ?? 0),
+      taxAmount: formatCurrency(order.taxAmount ?? 0),
+      shippingAmount: formatCurrency(order.shippingAmount ?? 0),
+      total: formatCurrency(order.total ?? 0),
+      orderUrl,
+    },
+  });
+};
+
 export const notifyOrderStatusChange = async (params: {
   to: string | null | undefined;
   firstName?: string | null;

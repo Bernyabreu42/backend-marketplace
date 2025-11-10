@@ -18,6 +18,40 @@ const urlOrNull = z
 
 const phoneRegex = /^[+()\d\s.-]{6,20}$/;
 
+const addressObjectSchema = z.object({
+  country: z.string().trim().max(100).optional(),
+  city: z.string().trim().max(100).optional(),
+  state: z.string().trim().max(100).optional(),
+  postalCode: z.string().trim().max(20).optional(),
+  street: z.string().trim().max(200).optional(),
+  note: z.string().trim().max(200).optional(),
+});
+
+const normalizeAddress = (
+  address?: z.infer<typeof addressObjectSchema>
+): Record<string, string> | null => {
+  if (!address) {
+    return null;
+  }
+
+  const cleaned = Object.entries(address).reduce<Record<string, string>>(
+    (acc, [key, value]) => {
+      if (typeof value !== "string") {
+        return acc;
+      }
+      const trimmed = value.trim();
+      if (trimmed.length === 0) {
+        return acc;
+      }
+      acc[key] = trimmed;
+      return acc;
+    },
+    {}
+  );
+
+  return Object.keys(cleaned).length > 0 ? cleaned : null;
+};
+
 // ---- Business hours (opcional, simple) ----
 const timeRegex = /^([01]\d|2[0-3]):[0-5]\d$/; // HH:mm 00-23
 export const businessDaySchema = z.object({
@@ -45,7 +79,7 @@ export const createStoreSchema = z
 
     email: z.string().email().optional(),
     phone: z.string().regex(phoneRegex, "Teléfono inválido").optional(),
-    address: z.string().trim().max(200).optional(),
+    address: z.union([z.string().trim().max(200), addressObjectSchema]).optional(),
 
     website: urlOrNull,
     facebook: urlOrNull,
@@ -77,7 +111,10 @@ export const createStoreSchema = z
     description: v.description.trim(),
     email: v.email?.trim().toLowerCase(),
     phone: v.phone,
-    address: toNull(v.address),
+    address:
+      typeof v.address === "string"
+        ? toNull(v.address)
+        : normalizeAddress(v.address),
 
     website: v.website,
     facebook: v.facebook,
@@ -110,7 +147,7 @@ export const updateStoreSchema = z
 
     email: z.string().email().optional(),
     phone: z.string().regex(phoneRegex, "Teléfono inválido").optional(),
-    address: z.string().trim().max(200).optional(),
+    address: addressObjectSchema.optional(),
 
     website: urlOrNull,
     facebook: urlOrNull,
@@ -139,7 +176,8 @@ export const updateStoreSchema = z
     description: v.description?.trim(),
     email: v.email?.trim().toLowerCase(),
     phone: v.phone,
-    address: v.address === undefined ? undefined : toNull(v.address),
+    address:
+      v.address === undefined ? undefined : normalizeAddress(v.address),
 
     website: v.website,
     facebook: v.facebook,
@@ -211,4 +249,3 @@ export function validateChangeStatus(input: unknown) {
     ? { success: true as const, data: r.data }
     : { success: false as const, errors: r.error.flatten().fieldErrors };
 }
-

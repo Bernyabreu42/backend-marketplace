@@ -14,11 +14,24 @@ import {
 } from "../../src/modules/products/products.controller";
 import { createMockReq, createMockRes } from "../utils/http";
 
+const ensureFavoriteDelegate = () => {
+  if (!(prisma as any).favorite) {
+    (prisma as any).favorite = {
+      findUnique: async () => null,
+      findMany: async () => [],
+    };
+  }
+};
+
+ensureFavoriteDelegate();
+
 const originalProductFindUnique = prisma.product.findUnique;
 const originalProductFindMany = prisma.product.findMany;
 const originalProductCount = prisma.product.count;
 const originalStoreFindUnique = prisma.store.findUnique;
 const originalQueryRaw = prisma.$queryRaw;
+const originalFavoriteFindMany = prisma.favorite.findMany;
+const originalFavoriteFindUnique = prisma.favorite.findUnique;
 
 afterEach(() => {
   (prisma.product as any).findUnique = originalProductFindUnique;
@@ -26,6 +39,8 @@ afterEach(() => {
   (prisma.product as any).count = originalProductCount;
   (prisma.store as any).findUnique = originalStoreFindUnique;
   (prisma as any).$queryRaw = originalQueryRaw;
+  (prisma.favorite as any).findMany = originalFavoriteFindMany;
+  (prisma.favorite as any).findUnique = originalFavoriteFindUnique;
 });
 
 describe("products.controller > getProductById", () => {
@@ -41,6 +56,7 @@ describe("products.controller > getProductById", () => {
 
   it("returns 404 when product is not found", async () => {
     (prisma.product as any).findUnique = mock(async () => null);
+    (prisma.favorite as any).findUnique = mock(async () => null);
 
     const req = createMockReq({
       params: { id: "3b136df3-7dfb-4a46-bb8f-786f2caef4d6" },
@@ -78,6 +94,7 @@ describe("products.controller > getProductById", () => {
       ],
       categories: [],
     }));
+    (prisma.favorite as any).findUnique = mock(async () => null);
 
     const req = createMockReq({
       params: { id: "3b136df3-7dfb-4a46-bb8f-786f2caef4d6" },
@@ -134,6 +151,7 @@ describe("products.controller > searchProductsByStore", () => {
     ]);
 
     (prisma.product as any).count = mock(async () => 12);
+    (prisma.favorite as any).findMany = mock(async () => []);
 
     const req = createMockReq({
       params: { storeId },
