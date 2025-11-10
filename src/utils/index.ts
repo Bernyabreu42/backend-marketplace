@@ -1,5 +1,11 @@
 import { deleteImage } from "../core/services/image-service";
 
+export const normalizar = (texto: string) =>
+  texto
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
 // search.ts
 type SearchConfig = {
   contains?: string[];
@@ -10,7 +16,7 @@ type SearchConfig = {
 
 export const SEARCHABLE: Record<string, SearchConfig> = {
   product: {
-    contains: ["name", "slug", "description"],
+    contains: ["name", "description", "sku"],
     exact: ["status", "categoryId"],
     number: ["price", "stock"],
     boolean: ["active"],
@@ -81,12 +87,13 @@ export function buildWhere(modelName: keyof typeof SEARCHABLE, query: any) {
   const applyProductCategoryFilter = (value: unknown, operator?: string) => {
     if (modelName !== "product") return;
 
-    const values = (Array.isArray(value)
-      ? value
-      : String(value)
-          .split(",")
-          .map((entry) => entry.trim()))
-      .filter((entry) => entry.length > 0);
+    const values = (
+      Array.isArray(value)
+        ? value
+        : String(value)
+            .split(",")
+            .map((entry) => entry.trim())
+    ).filter((entry) => entry.length > 0);
 
     if (values.length === 0) return;
 
@@ -103,17 +110,39 @@ export function buildWhere(modelName: keyof typeof SEARCHABLE, query: any) {
     AND.push({ categories: { some: { id: { in: values } } } });
   };
 
-
   // búsqueda global
-  if (query?.q && cfg.contains?.length) {
-    for (const f of cfg.contains) {
-      OR.push({ [f]: { contains: String(query.q), mode: "insensitive" } });
+  const buildContainsAndClause = (field: string, raw: unknown) => {
+    if (raw == null) return null;
+    const original = String(raw);
+    if (!original.trim()) return null;
+    const normalized = normalizar(original);
+    const variants = Array.from(new Set<string>([original, normalized]));
+    if (variants.length === 1) {
+      return { [field]: { contains: variants[0], mode: "insensitive" } };
+    }
+    return {
+      OR: variants.map((value) => ({
+        [field]: { contains: value, mode: "insensitive" },
+      })),
+    };
+  };
+
+  if (modelName !== "product" && query?.q && cfg.contains?.length) {
+    for (const field of cfg.contains) {
+      const clause = buildContainsAndClause(field, query.q);
+      if (!clause) continue;
+      if ("OR" in clause) {
+        OR.push(...(clause as any).OR);
+      } else {
+        OR.push(clause);
+      }
     }
   }
 
   for (const [rawKey, rawVal] of Object.entries(query || {})) {
     if (RESERVED.has(rawKey)) continue;
     if (rawVal == null || rawVal === "") continue;
+    if (rawKey === "q") continue;
 
     // operadores: campo[gt], campo[lte], campo[in]
     const m = rawKey.match(/^(.+)\[(.+)\]$/);
@@ -212,7 +241,10 @@ export function buildWhere(modelName: keyof typeof SEARCHABLE, query: any) {
           : { [rawKey]: valueForFilter }
       );
     } else if (cfg.contains?.includes(rawKey)) {
-      AND.push({ [rawKey]: { contains: String(rawVal), mode: "insensitive" } });
+      const clause = buildContainsAndClause(rawKey, rawVal);
+      if (clause) {
+        AND.push(clause);
+      }
     }
   }
 

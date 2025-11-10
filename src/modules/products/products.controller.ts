@@ -7,80 +7,84 @@ import { IdSchema, ProductSchema, UpdateProductSchema } from "./validator";
 import { z } from "zod";
 import { andWhere, buildWhere } from "../../utils";
 import { deleteImage } from "../../core/services/image-service";
-import { verifyAccessToken } from "../../utils/jwt";
 import { RolesEnum } from "../../core/enums";
-
-type RequesterContext = {
-  id: string;
-  role: RolesEnum;
-};
-
-const hasStoreVisibility = (
-  requester: RequesterContext | null,
-  ownerId?: string | null
-) => {
-  if (!requester) return false;
-  if (ownerId && requester.id === ownerId) return true;
-  return (
-    requester.role === RolesEnum.ADMIN || requester.role === RolesEnum.SUPPORT
-  );
-};
-
-const resolveRequester = async (
-  req: Request
-): Promise<RequesterContext | null> => {
-  if (req.user?.id && req.user?.role) {
-    return {
-      id: req.user.id,
-      role: req.user.role as RolesEnum,
-    };
-  }
-
-  const accessToken = req.cookies?.accessToken;
-  if (!accessToken) return null;
-
-  try {
-    const payload = verifyAccessToken(accessToken) as {
-      sub?: string;
-      id?: string;
-    };
-    const userId = payload?.sub ?? payload?.id;
-    if (!userId) return null;
-
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { id: true, role: true },
-    });
-
-    if (!user) return null;
-
-    return {
-      id: user.id,
-      role: user.role as RolesEnum,
-    };
-  } catch {
-    return null;
-  }
-};
+import {
+  buildProductVisibilityFilter,
+  hasStoreVisibility,
+  resolveRequester,
+} from "./services/visibility.service";
+import {
+  applyTaxesToPrice,
+  computePriceWithDiscount,
+  findApplicableDiscount,
+  findStoreTaxesByIds,
+  type DiscountSummary,
+} from "./services/pricing.service";
+import {
+  buildFallbackSearchClause,
+  extractSearchTerm,
+  findProductIdsBySearchTerm,
+  resolvePaginationParams,
+} from "./services/search.service";
+import { findFavoriteProductIds } from "./services/favorite.service";
 
 export const getAllProducts = async (req: Request, res: Response) => {
   try {
+    const requester = await resolveRequester(req);
+    const visibilityFilter = buildProductVisibilityFilter(requester);
+
+    const queryWithoutQ = { ...(req.query as Record<string, any>) };
+    const searchTerm = extractSearchTerm(queryWithoutQ.q);
+    delete queryWithoutQ.q;
+
+    let searchFilter: any;
+    if (searchTerm.length >= 2) {
+      const matchingIds = await findProductIdsBySearchTerm(searchTerm);
+      if (Array.isArray(matchingIds)) {
+        if (matchingIds.length === 0) {
+          const { page, limit } = resolvePaginationParams(req.query);
+          res.json(
+            ApiPaginatedResponse.success({
+              data: [],
+              pagination: {
+                total: 0,
+                page,
+                limit,
+                totalPages: 0,
+                next: false,
+                prev: page > 1,
+              },
+            })
+          );
+          return;
+        }
+        searchFilter = { id: { in: matchingIds } };
+      } else {
+        searchFilter = buildFallbackSearchClause(searchTerm);
+      }
+    }
+
     const result = await paginate({
       model: prisma.product,
       query: req.query,
       where: andWhere(
-        { store: { status: "active", isDeleted: false } },
-        buildWhere("product", req.query)
+        visibilityFilter,
+        searchFilter,
+        buildWhere("product", queryWithoutQ)
       ),
       include: {
         categories: {
           select: {
             id: true,
             name: true,
-            slug: true,
           },
         },
         relatedProducts: true,
+        discount: true,
+        _count: { select: { review: true } },
+        store: {
+          select: { address: true, name: true, id: true },
+        },
         taxes: {
           select: {
             tax: {
@@ -97,9 +101,22 @@ export const getAllProducts = async (req: Request, res: Response) => {
       },
     });
 
-    const data = result.data.map((p: any) => ({
+    const mappedProducts = result.data.map((p: any) => ({
       ...p,
       taxes: (p.taxes ?? []).map((t: any) => t.tax),
+    }));
+
+    let favoritesSet: Set<string> | null = null;
+    if (requester?.id) {
+      favoritesSet = await findFavoriteProductIds(
+        requester.id,
+        mappedProducts.map((p: any) => p.id)
+      );
+    }
+
+    const data = mappedProducts.map((p: any) => ({
+      ...p,
+      isFavorite: favoritesSet?.has(p.id) ?? false,
     }));
 
     res.json(ApiPaginatedResponse.success({ ...result, data }));
@@ -130,8 +147,22 @@ export const getProductById = async (req: Request, res: Response) => {
       where: { id },
       include: {
         store: {
-          select: { status: true, isDeleted: true, ownerId: true },
+          select: {
+            id: true,
+            name: true,
+            address: true,
+            logo:true,
+            email: true,
+            phone:true,
+            isDeleted:true,
+            status:true,
+            ownerId: true,
+            reviews:true,
+            createdAt:true,
+          },
         },
+        discount: true,
+        _count: { select: { review: true } },
         categories: {
           select: {
             id: true,
@@ -154,6 +185,7 @@ export const getProductById = async (req: Request, res: Response) => {
         },
       },
     });
+
 
     if (!product) {
       res
@@ -182,9 +214,44 @@ export const getProductById = async (req: Request, res: Response) => {
       return;
     }
 
+    const canViewProduct =
+      product.status === "active" ||
+      hasStoreVisibility(requester, storeMeta.ownerId);
+
+    if (!canViewProduct) {
+      res
+        .status(404)
+        .json(ApiResponse.error({ message: "Producto no disponible" }));
+      return;
+    }
+
     const taxes = product.taxes.map((t) => t.tax);
-    const { store: _store, ...productData } = product;
-    const data = { ...productData, taxes };
+    const { store: storeMetaForResponse, ...productData } = product;
+    const {
+      ownerId: _ownerId,
+      isDeleted: _isDeleted,
+      ...storePublic
+    } = storeMetaForResponse;
+
+    const isFavorite = requester?.id
+      ? Boolean(
+          await prisma.favorite.findUnique({
+            where: {
+              userId_productId: {
+                userId: requester.id,
+                productId: id,
+              },
+            },
+          })
+        )
+      : false;
+
+    const data = {
+      ...productData,
+      store: storePublic,
+      taxes,
+      isFavorite,
+    };
 
     res.json(
       ApiResponse.success({
@@ -226,8 +293,7 @@ export const getProductByStore = async (req: Request, res: Response) => {
     }
 
     const canViewInactive =
-      store.status === "active" ||
-      hasStoreVisibility(requester, store.ownerId);
+      store.status === "active" || hasStoreVisibility(requester, store.ownerId);
 
     if (!canViewInactive) {
       res
@@ -239,6 +305,41 @@ export const getProductByStore = async (req: Request, res: Response) => {
     const baseFilter = hasStoreVisibility(requester, store.ownerId)
       ? { storeId }
       : { storeId, store: { status: "active", isDeleted: false } };
+    const visibilityFilter = buildProductVisibilityFilter(requester);
+
+    const queryWithoutQ = { ...(req.query as Record<string, any>) };
+    const searchTerm = extractSearchTerm(queryWithoutQ.q);
+    delete queryWithoutQ.q;
+
+    let searchFilter: any;
+    if (searchTerm.length >= 2) {
+      const matchingIds = await findProductIdsBySearchTerm(searchTerm, {
+        storeId,
+      });
+
+      if (Array.isArray(matchingIds)) {
+        if (matchingIds.length === 0) {
+          const { page, limit } = resolvePaginationParams(req.query);
+          res.json(
+            ApiPaginatedResponse.success({
+              data: [],
+              pagination: {
+                total: 0,
+                page,
+                limit,
+                totalPages: 0,
+                next: false,
+                prev: page > 1,
+              },
+            })
+          );
+          return;
+        }
+        searchFilter = { id: { in: matchingIds } };
+      } else {
+        searchFilter = buildFallbackSearchClause(searchTerm);
+      }
+    }
 
     const products = await paginate({
       model: prisma.product,
@@ -246,24 +347,368 @@ export const getProductByStore = async (req: Request, res: Response) => {
       orderBy: { createdAt: "desc" },
       where: andWhere(
         baseFilter,
-        buildWhere("product", req.query)
+        visibilityFilter,
+        searchFilter,
+        buildWhere("product", queryWithoutQ)
       ),
       include: {
-        categories: {
+        _count: { select: { review: true } },
+         discount: true,
+       categories: {
           select: {
             id: true,
             name: true,
-            slug: true,
+          },
+        },
+        relatedProducts: true,
+        store: {
+          select: { address: true, name: true, id: true },
+        },
+        taxes: {
+          select: {
+            tax: {
+              select: {
+                id: true,
+                name: true,
+                type: true,
+                rate: true,
+                description: true,
+              },
+            },
           },
         },
       },
     });
 
-    res.json(ApiPaginatedResponse.success(products));
+    let favoritesSet: Set<string> | null = null;
+    if (requester?.id) {
+      favoritesSet = await findFavoriteProductIds(
+        requester.id,
+        products.data.map((p: any) => p.id)
+      );
+    }
+
+    const data = products.data.map((p: any) => ({
+      ...p,
+      isFavorite: favoritesSet?.has(p.id) ?? false,
+    }));
+
+    res.json(ApiPaginatedResponse.success({ ...products, data }));
   } catch (error) {
     res.status(500).json(
       ApiResponse.error({
         message: "Error al obtener productos de la tienda",
+        error,
+      })
+    );
+  }
+};
+
+export const searchProducts = async (req: Request, res: Response) => {
+  const term = String(req.query.q ?? "").trim();
+  const limitParam = Number(req.query.limit ?? 10);
+  const limit = Number.isFinite(limitParam)
+    ? Math.min(Math.max(Math.trunc(limitParam), 1), 30)
+    : 10;
+  const pageParam = Number(req.query.page ?? 1);
+  const page =
+    Number.isFinite(pageParam) && pageParam > 0 ? Math.trunc(pageParam) : 1;
+
+  if (term.length < 2) {
+    res.status(400).json(
+      ApiResponse.error({
+        message: "El termino de busqueda debe tener al menos 2 caracteres",
+      })
+    );
+    return;
+  }
+  try {
+    const requester = await resolveRequester(req);
+    const visibilityFilter = buildProductVisibilityFilter(requester);
+
+    const queryWithoutQ = { ...(req.query as Record<string, any>) };
+    delete queryWithoutQ.q;
+
+    let searchFilter: any;
+    const matchingIds = await findProductIdsBySearchTerm(term);
+    if (Array.isArray(matchingIds)) {
+      if (matchingIds.length === 0) {
+        res.json(
+          ApiPaginatedResponse.success({
+            data: [],
+            message: "Resultados de busqueda",
+            pagination: {
+              page,
+              limit,
+              total: 0,
+              totalPages: 0,
+              next: false,
+              prev: page > 1,
+            },
+          })
+        );
+        return;
+      }
+      searchFilter = { id: { in: matchingIds } };
+    } else {
+      searchFilter = buildFallbackSearchClause(term);
+    }
+
+    const where = andWhere(
+      searchFilter,
+      visibilityFilter,
+      buildWhere("product", queryWithoutQ)
+    );
+
+    const results = await prisma.product.findMany({
+      where,
+      skip: (page - 1) * limit,
+      take: limit,
+      orderBy: [{ isFeatured: "desc" }, { updatedAt: "desc" }],
+      select: {
+        id: true,
+        name: true,
+        sku: true,
+        price: true,
+        priceFinal: true,
+        images: true,
+        stock: true,
+        status: true,
+        discount: true,
+        _count: { select: { review: true } },
+         categories: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        relatedProducts: true,
+        store: {
+          select: { address: true, name: true, id: true },
+        },
+        taxes: {
+          select: {
+            tax: {
+              select: {
+                id: true,
+                name: true,
+                type: true,
+                rate: true,
+                description: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    let favoritesSet: Set<string> | null = null;
+    if (requester?.id) {
+      favoritesSet = await findFavoriteProductIds(
+        requester.id,
+        results.map((product) => product.id)
+      );
+    }
+
+    const data = results.map((product) => ({
+      ...product,
+      isFavorite: favoritesSet?.has(product.id) ?? false,
+    }));
+
+    const total = await prisma.product.count({ where });
+    const totalPages = Math.max(Math.ceil(total / limit), 1);
+
+    res.json(
+      ApiPaginatedResponse.success({
+        data,
+        message: "Resultados de busqueda",
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages,
+          next: page < totalPages,
+          prev: page > 1,
+        },
+      })
+    );
+  } catch (error) {
+    res.status(500).json(
+      ApiResponse.error({
+        message: "Error al buscar productos",
+        error,
+      })
+    );
+  }
+};
+
+export const searchProductsByStore = async (req: Request, res: Response) => {
+  const { storeId } = req.params;
+  const term = String(req.query.q ?? "").trim();
+  const limitParam = Number(req.query.limit ?? 10);
+  const limit = Number.isFinite(limitParam)
+    ? Math.min(Math.max(Math.trunc(limitParam), 1), 30)
+    : 10;
+  const pageParam = Number(req.query.page ?? 1);
+  const page =
+    Number.isFinite(pageParam) && pageParam > 0 ? Math.trunc(pageParam) : 1;
+
+  const validStore = IdSchema.safeParse(storeId);
+  if (!validStore.success) {
+    res
+      .status(400)
+      .json(ApiResponse.error({ message: "ID de tienda invalido" }));
+    return;
+  }
+
+  if (term.length < 2) {
+    res.status(400).json(
+      ApiResponse.error({
+        message: "El termino de busqueda debe tener al menos 2 caracteres",
+      })
+    );
+    return;
+  }
+
+  try {
+    const requester = await resolveRequester(req);
+
+    const store = await prisma.store.findUnique({
+      where: { id: validStore.data },
+      select: { id: true, ownerId: true, status: true, isDeleted: true },
+    });
+
+    if (!store || store.isDeleted) {
+      res
+        .status(404)
+        .json(ApiResponse.error({ message: "Tienda no disponible" }));
+      return;
+    }
+
+    const canViewInactive =
+      store.status === "active" || hasStoreVisibility(requester, store.ownerId);
+
+    if (!canViewInactive) {
+      res
+        .status(404)
+        .json(ApiResponse.error({ message: "Tienda no disponible" }));
+      return;
+    }
+
+    const visibilityFilter = buildProductVisibilityFilter(requester);
+    const queryWithoutQ = { ...(req.query as Record<string, any>) };
+    delete queryWithoutQ.q;
+
+    let searchFilter: any;
+    const matchingIds = await findProductIdsBySearchTerm(term, {
+      storeId: store.id,
+    });
+    if (Array.isArray(matchingIds)) {
+      if (matchingIds.length === 0) {
+        res.json(
+          ApiPaginatedResponse.success({
+            data: [],
+            message: "Resultados de busqueda",
+            pagination: {
+              page,
+              limit,
+              total: 0,
+              totalPages: 0,
+              next: false,
+              prev: page > 1,
+            },
+          })
+        );
+        return;
+      }
+      searchFilter = { id: { in: matchingIds } };
+    } else {
+      searchFilter = buildFallbackSearchClause(term);
+    }
+
+    const where = andWhere(
+      { storeId: store.id },
+      visibilityFilter,
+      searchFilter,
+      buildWhere("product", queryWithoutQ)
+    );
+
+    const results = await prisma.product.findMany({
+      where,
+      skip: (page - 1) * limit,
+      take: limit,
+      orderBy: [{ isFeatured: "desc" }, { updatedAt: "desc" }],
+      select: {
+        id: true,
+        name: true,
+        sku: true,
+        price: true,
+        priceFinal: true,
+        images: true,
+        stock: true,
+        status: true,
+        discount: true,
+        _count: { select: { review: true } },
+         categories: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        relatedProducts: true,
+        store: {
+          select: { address: true, name: true, id: true },
+        },
+        taxes: {
+          select: {
+            tax: {
+              select: {
+                id: true,
+                name: true,
+                type: true,
+                rate: true,
+                description: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    let favoritesSet: Set<string> | null = null;
+    if (requester?.id) {
+      favoritesSet = await findFavoriteProductIds(
+        requester.id,
+        results.map((product) => product.id)
+      );
+    }
+
+    const data = results.map((product) => ({
+      ...product,
+      isFavorite: favoritesSet?.has(product.id) ?? false,
+    }));
+
+    const total = await prisma.product.count({ where });
+    const totalPages = Math.max(Math.ceil(total / limit), 1);
+
+    res.json(
+      ApiPaginatedResponse.success({
+        data,
+        message: "Resultados de busqueda",
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages,
+          next: page < totalPages,
+          prev: page > 1,
+        },
+      })
+    );
+  } catch (error) {
+    res.status(500).json(
+      ApiResponse.error({
+        message: "Error al buscar productos",
         error,
       })
     );
@@ -277,7 +722,7 @@ export const createProduct = async (req: Request, res: Response) => {
     if (!parsed.success) {
       res.status(400).json(
         ApiResponse.error({
-          message: "Datos inválidos",
+          message: "Datos invalidos",
           error: parsed.error.format(),
         })
       );
@@ -285,11 +730,24 @@ export const createProduct = async (req: Request, res: Response) => {
       return;
     }
 
-    const { categories = [], taxes = [], discountId, ...data } = parsed.data;
+    if (!req.user?.id) {
+      res
+        .status(401)
+        .json(ApiResponse.error({ message: "Autenticacion requerida" }));
+      return;
+    }
+
+    const {
+      categories = [],
+      taxes: taxIds = [],
+      discountId,
+      ...data
+    } = parsed.data;
 
     // Validar tienda y ownership
     const store = await prisma.store.findUnique({
       where: { id: data.storeId },
+      select: { id: true, ownerId: true },
     });
     if (!store) {
       res
@@ -298,38 +756,55 @@ export const createProduct = async (req: Request, res: Response) => {
       return;
     }
 
-    if (store.ownerId !== req?.user.id) {
+    if (store.ownerId !== req.user.id && req.user.role !== RolesEnum.ADMIN) {
       res
         .status(403)
         .json(
-          ApiResponse.error({ message: "No tienes permiso para esta acción" })
+          ApiResponse.error({ message: "No tienes permiso para esta accion" })
         );
       return;
     }
 
-    // --- LÓGICA DE CÁLCULO DE PRECIO ---
-    let finalPrice = data.price;
+    let applicableDiscount: DiscountSummary | null = null;
     if (discountId) {
-      const discount = await prisma.discount.findUnique({
-        where: { id: discountId },
-      });
-      if (discount) {
-        const basePrice = data.price;
-        if (discount.type === "percentage") {
-          finalPrice = basePrice - (basePrice * discount.value) / 100;
-        } else if (discount.type === "fixed") {
-          finalPrice = basePrice - discount.value;
-        }
+      applicableDiscount = await findApplicableDiscount(discountId, store.id);
+      if (!applicableDiscount) {
+        res.status(400).json(
+          ApiResponse.error({
+            message: "El descuento no es valido para esta tienda",
+          })
+        );
+        return;
       }
     }
-    // --- FIN DE LA LÓGICA ---
+
+    const normalizedTaxIds = Array.from(new Set(taxIds));
+
+    const taxesForPrice = await findStoreTaxesByIds(store.id, normalizedTaxIds);
+    if (taxesForPrice.length !== normalizedTaxIds.length) {
+      const found = new Set(taxesForPrice.map((tax) => tax.id));
+      const missing = normalizedTaxIds.filter((id) => !found.has(id));
+      res.status(400).json(
+        ApiResponse.error({
+          message: "Algunos impuestos no son válidos para esta tienda",
+          error: { missingTaxIds: missing },
+        })
+      );
+      return;
+    }
+
+    const discountedPrice = computePriceWithDiscount(
+      data.price,
+      applicableDiscount
+    );
+    const finalPrice = applyTaxesToPrice(discountedPrice, taxesForPrice);
 
     // Crear producto + relaciones (categorías M:N y taxes vía tabla puente)
     const product = await prisma.product.create({
       data: {
         ...data,
         priceFinal: finalPrice,
-        discountId: discountId,
+        discountId: applicableDiscount?.id ?? null,
         ...(categories.length
           ? {
               categories: {
@@ -337,8 +812,12 @@ export const createProduct = async (req: Request, res: Response) => {
               },
             }
           : {}),
-        ...(taxes.length
-          ? { taxes: { create: taxes.map((taxId: string) => ({ taxId })) } }
+        ...(normalizedTaxIds.length
+          ? {
+              taxes: {
+                create: normalizedTaxIds.map((taxId: string) => ({ taxId })),
+              },
+            }
           : {}),
       },
       include: {
@@ -361,24 +840,27 @@ export const createRelatedProducts = async (req: Request, res: Response) => {
   const { id } = req.params;
   const { relatedProductIds } = req.body;
 
-  // Validar el ID base
-  const validId = IdSchema.safeParse(id);
-
-  if (!validId.success) {
+  if (!req.user?.id) {
     res
-      .status(400)
-      .json(ApiResponse.error({ message: "ID de producto inválido" }));
+      .status(401)
+      .json(ApiResponse.error({ message: "Autenticacion requerida" }));
     return;
   }
 
-  // Validar estructura del array
-  const RelatedIdsSchema = z.array(z.string().uuid());
-  const parsed = RelatedIdsSchema.safeParse(relatedProductIds);
+  const validId = IdSchema.safeParse(id);
+  if (!validId.success) {
+    res
+      .status(400)
+      .json(ApiResponse.error({ message: "ID de producto invalido" }));
+    return;
+  }
 
+  const RelatedIdsSchema = z.array(z.string().uuid());
+  const parsed = RelatedIdsSchema.safeParse(relatedProductIds ?? []);
   if (!parsed.success) {
     res.status(400).json(
       ApiResponse.error({
-        message: "IDs de productos relacionados inválidos",
+        message: "IDs de productos relacionados invalidos",
         error: parsed.error.format(),
       })
     );
@@ -386,8 +868,13 @@ export const createRelatedProducts = async (req: Request, res: Response) => {
   }
 
   try {
-    // Verificar que el producto base existe
-    const baseProduct = await prisma.product.findUnique({ where: { id } });
+    const baseProduct = await prisma.product.findUnique({
+      where: { id },
+      include: {
+        store: { select: { id: true, ownerId: true } },
+      },
+    });
+
     if (!baseProduct) {
       res
         .status(404)
@@ -395,32 +882,58 @@ export const createRelatedProducts = async (req: Request, res: Response) => {
       return;
     }
 
-    // Filtrar el mismo ID
-    const validIds = relatedProductIds.filter((pid: string) => pid !== id);
-
-    // Verificar que todos los productos relacionados existen
-    const existing = await prisma.product.findMany({
-      where: { id: { in: validIds } },
-      select: { id: true },
-    });
-
-    const existingIds = existing.map((p) => p.id);
-    if (existingIds.length === 0) {
+    if (
+      baseProduct.store?.ownerId !== req.user.id &&
+      req.user.role !== RolesEnum.ADMIN
+    ) {
       res
-        .status(404)
-        .json(
-          ApiResponse.error({ message: "Ningún producto relacionado válido" })
-        );
+        .status(403)
+        .json(ApiResponse.error({ message: "No autorizado para editar" }));
       return;
     }
 
-    // Establecer relación (uno a muchos, unidireccional)
+    const uniqueIds = Array.from(
+      new Set(parsed.data.filter((pid) => pid !== id))
+    );
+
+    const existing = uniqueIds.length
+      ? await prisma.product.findMany({
+          where: {
+            id: { in: uniqueIds },
+            storeId: baseProduct.storeId,
+          },
+          select: { id: true },
+        })
+      : [];
+
+    const existingIds = existing.map((p) => p.id);
+    const missingIds = uniqueIds.filter((pid) => !existingIds.includes(pid));
+
+    if (uniqueIds.length > 0 && existingIds.length === 0) {
+      res.status(404).json(
+        ApiResponse.error({
+          message: "No se encontraron productos relacionados validos",
+          error: { missingIds: uniqueIds },
+        })
+      );
+      return;
+    }
+
+    if (missingIds.length > 0) {
+      res.status(400).json(
+        ApiResponse.error({
+          message: "Algunos productos relacionados no pertenecen a la tienda",
+          error: { missingIds },
+        })
+      );
+      return;
+    }
+
     await prisma.product.update({
       where: { id },
       data: {
         relatedProducts: {
-          set: [], // limpia relaciones previas si quieres
-          connect: existingIds.map((id) => ({ id })),
+          set: existingIds.map((productId) => ({ id: productId })),
         },
       },
     });
@@ -449,7 +962,7 @@ export const updateProduct = async (req: Request, res: Response) => {
   if (!validId.success) {
     res
       .status(400)
-      .json(ApiResponse.error({ message: "ID de producto inválido" }));
+      .json(ApiResponse.error({ message: "ID de producto invalido" }));
     return;
   }
 
@@ -461,7 +974,12 @@ export const updateProduct = async (req: Request, res: Response) => {
 
   const existing = await prisma.product.findUnique({
     where: { id },
-    include: { store: true },
+    include: {
+      store: true,
+      taxes: {
+        include: { tax: true },
+      },
+    },
   });
 
   if (!existing) {
@@ -471,67 +989,135 @@ export const updateProduct = async (req: Request, res: Response) => {
     return;
   }
 
-  if (existing.store.ownerId !== req.user.id) {
+  if (existing.store.ownerId !== req?.user?.id) {
     res.status(403).json(ApiResponse.error({ message: "No autorizado" }));
     return;
   }
 
   // Desestructura UNA vez
   const {
-    categories: categoryIds = [],
-    taxes: taxIds, // No lo usamos para el precio final, sino en la orden
-    discountId, // <-- ¡NUEVO! Recibimos el ID del descuento
+    categories: categoryIds,
+    taxes: taxIds,
+    discountId,
     sku,
-    ...rest
+    storeId: incomingStoreId,
+    ...rawData
   } = parsed.data as {
     categories?: string[];
-    taxes?: string[]; // Mantener para la relación
-    discountId?: string | null; // Puede ser nulo para quitar el descuento
+    taxes?: string[];
+    discountId?: string | null;
     sku?: string | null;
+    storeId?: string;
     [k: string]: any;
   };
 
-  // imágenes nuevas que vienen del cliente (array de strings)
-  const newImages: string[] = Array.isArray(rest.images) ? rest.images : [];
-
-  // diferencias (lo que hay que borrar del disco)
-  const toDelete = (existing.images || []).filter(
-    (img) => !newImages.includes(img)
+  // Imagenes nuevas que vienen del cliente (array de strings)
+  const imagesProvided = Object.prototype.hasOwnProperty.call(
+    parsed.data,
+    "images"
   );
+  const newImages =
+    imagesProvided && Array.isArray(rawData.images)
+      ? (rawData.images as string[])
+      : undefined;
+
+  // Diferencias (lo que hay que borrar del disco)
+  const toDelete =
+    imagesProvided && Array.isArray(newImages)
+      ? (existing.images ?? []).filter(
+          (img) => !(newImages as string[]).includes(img)
+        )
+      : [];
+
+  if (incomingStoreId !== undefined && incomingStoreId !== existing.storeId) {
+    res.status(400).json(
+      ApiResponse.error({
+        message: "No es posible reasignar la tienda del producto",
+      })
+    );
+    return;
+  }
 
   try {
-    // --- NUEVA LÓGICA DE CÁLCULO DE PRECIO ---
-    let finalPrice = parsed.data.price ?? existing.price; // Usa el precio nuevo o el existente como base
+    const basePrice = parsed.data.price ?? existing.price;
     let finalDiscountId =
       discountId === undefined ? existing.discountId : discountId;
 
+    let discountInfo: DiscountSummary | null = null;
     if (finalDiscountId) {
-      const discount = await prisma.discount.findUnique({
-        where: { id: finalDiscountId },
-      });
-      if (discount) {
-        const basePrice = parsed.data.price ?? existing.price;
-        if (discount.type === "percentage") {
-          finalPrice = basePrice - (basePrice * discount.value) / 100;
-        } else if (discount.type === "fixed") {
-          finalPrice = basePrice - discount.value;
+      discountInfo = await findApplicableDiscount(
+        finalDiscountId,
+        existing.storeId
+      );
+      if (!discountInfo) {
+        if (discountId === undefined) {
+          finalDiscountId = null;
+        } else {
+          res.status(400).json(
+            ApiResponse.error({
+              message: "El descuento no es valido para esta tienda",
+            })
+          );
+          return;
+        }
+      }
+    }
+
+    finalDiscountId = discountInfo?.id ?? finalDiscountId ?? null;
+
+    let taxesForPrice: Awaited<ReturnType<typeof findStoreTaxesByIds>> = [];
+    if (Array.isArray(taxIds)) {
+      const normalizedTaxIds = Array.from(
+        new Set(
+          taxIds.filter((taxId): taxId is string => typeof taxId === "string")
+        )
+      );
+
+      if (normalizedTaxIds.length > 0) {
+        taxesForPrice = await findStoreTaxesByIds(
+          existing.storeId,
+          normalizedTaxIds
+        );
+
+        if (taxesForPrice.length !== normalizedTaxIds.length) {
+          const found = new Set(taxesForPrice.map((tax) => tax.id));
+          const missing = normalizedTaxIds.filter((id) => !found.has(id));
+          res.status(400).json(
+            ApiResponse.error({
+              message: "Algunos impuestos no son válidos para esta tienda",
+              error: { missingTaxIds: missing },
+            })
+          );
+          return;
         }
       }
     } else {
-      // Si no hay promotionId, el precio final es el precio base
-      finalPrice = parsed.data.price ?? existing.price;
+      taxesForPrice =
+        existing.taxes?.map((productTax) => ({
+          id: productTax.tax.id,
+          type: productTax.tax.type,
+          rate: productTax.tax.rate,
+        })) ?? [];
     }
-    // --- FIN DE LA LÓGICA ---
+
+    const discountedPrice = computePriceWithDiscount(basePrice, discountInfo);
+    const finalPrice = applyTaxesToPrice(discountedPrice, taxesForPrice);
 
     const updated = await prisma.$transaction(async (tx) => {
-      const payload: any = {
-        ...rest,
-        sku: typeof sku === "string" && sku.trim() === "" ? null : sku ?? null,
-        priceFinal: finalPrice, // <-- Usamos el precio calculado
-        discountId: finalDiscountId, // <-- Guardamos la referencia al descuento
+      const payload: Record<string, unknown> = {
+        ...rawData,
+        priceFinal: finalPrice,
+        discountId: finalDiscountId,
       };
 
-      // reemplaza categorías (si te mandan array)
+      if (sku !== undefined) {
+        payload.sku =
+          sku === null || (typeof sku === "string" && sku.trim() === "")
+            ? null
+            : sku;
+      }
+
+      // Reemplaza categorias si se envian
       if (Array.isArray(categoryIds)) {
         payload.categories = { set: categoryIds.map((cid) => ({ id: cid })) };
       }
@@ -540,7 +1126,7 @@ export const updateProduct = async (req: Request, res: Response) => {
       await tx.product.update({ where: { id }, data: payload });
 
       // taxes por tabla puente
-      if (taxIds && Array.isArray(taxIds)) {
+      if (Array.isArray(taxIds)) {
         await tx.productTax.deleteMany({ where: { productId: id } });
         if (taxIds.length) {
           await tx.productTax.createMany({
@@ -550,9 +1136,8 @@ export const updateProduct = async (req: Request, res: Response) => {
         }
       }
 
-      // devolver producto
+      // Devolver producto actualizado
       return tx.product.findUnique({
-        // <-- Añadir return para que la transacción devuelva el producto
         where: { id },
         include: {
           categories: true,
@@ -560,7 +1145,6 @@ export const updateProduct = async (req: Request, res: Response) => {
           relatedProducts: true,
         },
       });
-      return;
     });
 
     // 🔽 fuera de la transacción: borra ficheros huérfanos
@@ -618,7 +1202,7 @@ export const deleteProduct = async (req: Request, res: Response) => {
       return;
     }
 
-    if (product.store.ownerId !== req.user.id) {
+    if (product.store.ownerId !== req?.user?.id) {
       res.status(403).json(ApiResponse.error({ message: "No autorizado" }));
       return;
     }
@@ -653,7 +1237,28 @@ export const getRelatedProducts = async (req: Request, res: Response) => {
       where: { id },
       include: {
         store: {
-          select: { status: true, isDeleted: true, ownerId: true },
+          select: { status: true, isDeleted: true, ownerId: true,address: true, name: true, id: true  },
+        },
+         categories: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        discount: true,
+        _count: { select: { review: true } },
+        taxes: {
+          select: {
+            tax: {
+              select: {
+                id: true,
+                name: true,
+                type: true,
+                rate: true,
+                description: true,
+              },
+            },
+          },
         },
         relatedProducts: {
           where: { store: { status: "active", isDeleted: false } },
@@ -688,9 +1293,22 @@ export const getRelatedProducts = async (req: Request, res: Response) => {
       return;
     }
 
+    let favoritesSet: Set<string> | null = null;
+    if (requester?.id) {
+      favoritesSet = await findFavoriteProductIds(
+        requester.id,
+        product.relatedProducts.map((related) => related.id)
+      );
+    }
+
+    const related = product.relatedProducts.map((relatedProduct) => ({
+      ...relatedProduct,
+      isFavorite: favoritesSet?.has(relatedProduct.id) ?? false,
+    }));
+
     res.json(
       ApiResponse.success({
-        data: product.relatedProducts,
+        data: related,
         message: "Productos relacionados obtenidos",
       })
     );
@@ -702,5 +1320,117 @@ export const getRelatedProducts = async (req: Request, res: Response) => {
       })
     );
     return;
+  }
+};
+
+export const getFeaturedProductsController = async (
+  req: Request,
+  res: Response
+) => {
+  const limit = Number(req.query.limit ?? 10);
+  try {
+    const requester = await resolveRequester(req);
+    const page = Number(req.query.page ?? 1);
+    const size = Math.min(Math.max(limit, 1), 50);
+
+    const baseQuery = {
+      where: {
+        status: "active" as const,
+        store: { status: "active", isDeleted: false },
+      },
+      include: {
+        discount: true,
+        _count: { select: { review: true } },
+         categories: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        relatedProducts: true,
+        store: {
+          select: { address: true, name: true, id: true },
+        },
+        taxes: {
+          select: {
+            tax: {
+              select: {
+                id: true,
+                name: true,
+                type: true,
+                rate: true,
+                description: true,
+              },
+            },
+          },
+        },
+      },
+    };
+
+    const featuredResult = await paginate({
+      model: prisma.product,
+      query: { page: String(page), limit: String(size) },
+      where: { ...baseQuery.where, isFeatured: true },
+      include: baseQuery.include,
+    });
+
+    let products = featuredResult.data;
+    let pagination = featuredResult.pagination;
+
+    if (products.length === 0) {
+      const fallbackResult = await paginate({
+        model: prisma.product,
+        query: { page: String(page), limit: String(size) },
+        where: baseQuery.where,
+        include: baseQuery.include,
+        orderBy: [
+          { orderItem: { _count: "desc" } },
+          { review: { _count: "desc" } },
+          { updatedAt: "desc" },
+        ],
+      });
+
+      products = fallbackResult.data;
+      pagination = fallbackResult.pagination;
+    }
+
+    let favoritesSet: Set<string> | null = null;
+    if (requester?.id) {
+      favoritesSet = await findFavoriteProductIds(
+        requester.id,
+        products.map((product: any) => product.id)
+      );
+    }
+
+    const enriched = products.map((product: any) => ({
+      ...product,
+      totalOrders: product.orderItem?.reduce(
+        (acc: number, item: any) => acc + item.quantity,
+        0
+      ),
+      ratingAverage:
+        product.review?.length > 0
+          ? product.review.reduce(
+              (acc: number, review: any) => acc + review.rating,
+              0
+            ) / product.review.length
+          : 0,
+      isFavorite: favoritesSet?.has(product.id) ?? false,
+    }));
+
+    res.json(
+      ApiPaginatedResponse.success({
+        data: enriched,
+        pagination,
+        message: "Productos destacados",
+      })
+    );
+  } catch (error) {
+    res.status(500).json(
+      ApiResponse.error({
+        message: "Error al obtener productos destacados",
+        error,
+      })
+    );
   }
 };
