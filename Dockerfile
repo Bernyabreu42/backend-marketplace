@@ -6,7 +6,7 @@ FROM oven/bun:latest AS base
 WORKDIR /usr/src/app
 
 # Copiar archivos de definición de dependencias
-COPY package.json bun.lockb tsconfig.json ./
+COPY package.json bun.lock tsconfig.json ./
 
 # Instalar dependencias usando Bun
 RUN bun install --production
