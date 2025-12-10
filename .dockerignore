@@ -1,0 +1,13 @@
+# Directorios de módulos locales
+node_modules
+.vscode
+.git
+
+# Archivos de caché/temporales
+temp.txt
+
+# Directorios de desarrollo/tests (si no son necesarios en producción)
+tests/
+
+# Directorios de carga (uploads)
+uploads/
