@@ -97,6 +97,9 @@ CLIENT_URL="http://localhost:5173"
 # For multiple clients, provide a comma-separated or JSON array of origins
 # e.g., CLIENTS_URLS='["http://localhost:5173", "https://my-app.com"]'
 CLIENTS_URLS=""
+# Alternative typed array version (parsed automatically when present)
+CLIENT_URLS='["http://localhost:5173"]'
+SELLER_ONBOARDING_URL="https://seller-onboarding.example.com"
 
 # -------------------------
 # Security & API Keys
@@ -123,6 +126,19 @@ DATABASE_URL="postgresql://user:password@localhost:5432/mydb?schema=public"
 # Credentials for your SMTP server (e.g., Gmail, SendGrid)
 MAIL_USER="your-email@example.com"
 MAIL_PASS="your-email-password-or-app-key"
+# Optional advanced overrides if you manage your own SMTP server
+MAIL_SERVICE="gmail"
+MAIL_HOST="smtp.gmail.com"
+MAIL_PORT=587
+MAIL_SECURE=false
+MAIL_IGNORE_TLS=false
+MAIL_REQUIRE_TLS=false
+MAIL_FROM="CommerceHub <no-reply@commercehub.local>"
+
+# -------------------------
+# Feature Flags
+# -------------------------
+LOYALTY_POINTS_ENABLED="true"
 
 # -------------------------
 # Database Seeding (Optional)
@@ -210,7 +226,30 @@ The backend is organized into the following API modules under the `/api/` prefix
 -   `/discounts`: Discount management (Seller-specific).
 -   `/promotions`: Promotion and coupon management (Seller-specific).
 -   `/loyalty`: Customer loyalty points system.
+-   `/favorites`: Buyer wishlists/favorite products.
+-   `/reviews`: Store and product reviews.
+-   `/addresses`: Address book management for buyers.
+-   `/dashboard`: KPIs, charts, and summaries for admins/support.
+-   `/blog`: Marketing content & announcements.
 -   `/upload-image`: File upload endpoints.
+
+### 5.6. File Uploads & Static Assets
+
+-   `/api/upload-image/single` and `/multiple` accept multipart form-data, process each file with Multer in memory, and optimize them via Sharp before storage.
+-   Assets are written under the `uploads/` directory; Express exposes them via `GET /uploads/**`, so persisted URLs can be consumed immediately on the frontend.
+-   `image-service.ts` keeps a deletion queue to retry failed removals and prunes empty folders, making cleanup safe for async flows.
+
+### 5.7. Email & Notification Flow
+
+-   `core/services/mailService.ts` centralizes Nodemailer transport creation and templates rendered through Handlebars.
+-   `notificationService.ts` sends transactional emails (order confirmations, status updates, loyalty earned/redeemed, store lifecycle events).
+-   Ensure the extended mail environment variables are set in production; otherwise, the service logs a warning and skips sending.
+
+### 5.8. OpenAPI Workflow
+
+-   Every module owns a partial spec in `src/openapi/*.json`.
+-   Run `bun run openapi:build` (powered by `scripts/merge-openapi.ts`) to merge them into `src/openapi.json`.
+-   The merged spec is cached and served at `/openapi.json`, and Scalar renders `/docs` using that file.
 
 ## 6. Scripts
 
@@ -226,6 +265,9 @@ The following scripts are available in `package.json`:
 | `bun run db:seed`   | Runs the database seed script.                                              |
 | `bun run db:deploy` | Applies pending migrations, intended for production environments.           |
 | `bun run openapi:build` | Merges individual OpenAPI JSON files into a single `openapi.json` file. |
+| `bun run db:push`   | Pushes the current Prisma schema to the database (no migrations).           |
+| `bun run db:generate` | Regenerates the Prisma client after changing the schema.                  |
+| `bun run db:status` | Shows migration history and pending steps for the current database.         |
 
 ## 7. AI Model Context
 
@@ -277,3 +319,10 @@ To add a new feature (e.g., "reviews"), follow this sequence:
     app.use("/api/reviews", reviewsRoutes);
     ```
 7.  **Add Validation**: (Optional but recommended) Create `src/modules/reviews/validator.ts` with Zod schemas for the new endpoints and apply them as middleware in the routes file.
+
+## 8. Testing
+
+-   Run `bun test` to execute every suite. The structure of `tests/` mirrors `src/`, which keeps specs close to their modules (e.g., `tests/modules/orders.controller.test.ts`).
+-   `tests/utils/test-env.ts` seeds deterministic environment variables so that unit tests never depend on your local `.env`.
+-   Use the lightweight mocks from `tests/utils/http.ts` to simulate Express `Request`/`Response` objects, HTTP status codes, and cookies.
+-   When a test needs to interact with Prisma, mock the delegate directly (see `tests/modules/products.controller.test.ts`) to avoid touching a real database.
