@@ -4,7 +4,7 @@ FROM oven/bun:1 AS base
 WORKDIR /usr/src/app
 
 # Copiamos los archivos de definición primero para aprovechar cache
-COPY package.json bun.lockb tsconfig.json ./
+COPY package.json bun.lock tsconfig.json ./
 
 # Instalamos TODAS las dependencias (incluye dev, prisma CLI, etc.)
 RUN bun install --frozen-lockfile
