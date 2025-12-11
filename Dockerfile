@@ -12,6 +12,9 @@ RUN bun install --frozen-lockfile
 # Copiamos el resto del código
 COPY . .
 
+# Generamos el cliente de Prisma para asegurar enums/export estén disponibles
+RUN bun run prisma generate
+
 ENV NODE_ENV=production
 ENV PORT=4000
 EXPOSE 4000
