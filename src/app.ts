@@ -60,7 +60,8 @@ app.get("/openapi.json", (_req, res) => {
   }
 });
 
-app.use("/docs", apiReference({ url: "/openapi.json", theme: "purple" }));
+// Serve the API reference at /api (root only) so consumers see docs there.
+app.get("/api", apiReference({ url: "/openapi.json", theme: "purple" }));
 
 app.use(apiKeyGuard);
 
