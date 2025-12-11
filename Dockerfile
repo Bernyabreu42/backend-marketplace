@@ -1,31 +1,28 @@
-# 1. ETAPA DE CONSTRUCCIÓN (Para instalar dependencias y compilar)
-# Usar una imagen base de Bun para compatibilidad
-FROM oven/bun:latest AS base
+# 1. ETAPA DE CONSTRUCCIÓN (Build Stage)
+# Usar la imagen LTS actual de Node.js 24-alpine
+FROM node:24-alpine AS base
 
 # Establecer el directorio de trabajo
 WORKDIR /usr/src/app
 
 # Copiar archivos de definición de dependencias
-COPY package.json bun.lock tsconfig.json ./
+COPY package.json package-lock.json tsconfig.json ./
 
-# Instalar dependencias usando Bun
-RUN bun install --production
+# Instalar dependencias de producción
+RUN npm install --production
 
-# Copiar el código fuente (src, scripts, prisma, etc.)
+# Copiar el resto del código
 COPY . .
 
-# 2. ETAPA DE EJECUCIÓN (Usar la misma base o una más ligera si es posible, aunque bun:latest es ligera)
+# 2. ETAPA DE EJECUCIÓN (Final Stage)
 FROM base AS final
 
-# Exponer el puerto que tu `server.ts` utiliza (env.PORT)
-# Asumo que env.PORT es 3000, si es otro, cámbialo aquí.
+# Exponer el puerto
 ENV PORT 4000
 EXPOSE 4000
 
-# Ejecutar las migraciones de Prisma antes de iniciar la aplicación
-# Usas el comando 'db:deploy' que es adecuado para entornos de producción
-RUN bun run db:deploy
-
-# El comando de inicio que se define en tu package.json
-# "start": "bun run src/server.ts"
-CMD [ "bun", "run", "src/server.ts" ]
+# El comando de inicio:
+# 1. Ejecuta la migración de la base de datos (db:deploy).
+# 2. Si es exitosa (&&), ejecuta la aplicación (npm run start).
+# ESTO RESUELVE EL ERROR P1001.
+CMD ["/bin/sh", "-c", "npm run db:deploy && npm run start"]
