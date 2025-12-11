@@ -52,10 +52,23 @@ const getOpenApiSpec = () => {
   return cachedOpenApi;
 };
 
-app.get("/openapi.json", (_req, res) => {
+app.get("/openapi.json", (req, res) => {
   try {
-    res.type("application/json").send(getOpenApiSpec());
+    const specRaw = getOpenApiSpec();
+    const spec = JSON.parse(specRaw);
+
+    const baseUrl = `${req.protocol}://${req.get("host")}`;
+
+    spec.servers = [
+      {
+        url: baseUrl,            // p.ej. https://marketplace.bernyabreu.dev
+        description: "Current host",
+      },
+    ];
+
+    res.json(spec);
   } catch (error) {
+    console.error("Error building OpenAPI spec:", error);
     res.status(500).send("OpenAPI spec not available");
   }
 });
