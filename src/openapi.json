@@ -8489,6 +8489,10 @@
     {
       "url": "http://localhost:4000",
       "description": "Local"
+    },
+    {
+      "url": "https://marketplace.bernyabreu.dev/api",
+      "description": "Production"
     }
   ]
 }

@@ -39,7 +39,10 @@ app.use(
     allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
+
 app.options("*", cors());
+
+// ---------- STATIC & OPENAPI (ANTES DEL apiKeyGuard) ----------
 
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
@@ -52,23 +55,11 @@ const getOpenApiSpec = () => {
   return cachedOpenApi;
 };
 
-app.get("/openapi.json", (req, res) => {
+// OpenAPI JSON público
+app.get("/openapi.json", (_req, res) => {
   try {
-    const specRaw = getOpenApiSpec();
-    const spec = JSON.parse(specRaw);
-
-    const baseUrl = `${req.protocol}://${req.get("host")}`;
-
-    spec.servers = [
-      {
-        url: baseUrl,            // p.ej. https://marketplace.bernyabreu.dev
-        description: "Current host",
-      },
-    ];
-
-    res.json(spec);
+    res.type("application/json").send(getOpenApiSpec());
   } catch (error) {
-    console.error("Error building OpenAPI spec:", error);
     res.status(500).send("OpenAPI spec not available");
   }
 });
