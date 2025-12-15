@@ -470,12 +470,18 @@ export const registerAccount = async (req: Request, res: Response) => {
     // token de verificación dedicado (24h)
     const verifyToken = generateEmailToken({ id: user.id });
 
+    const friendlyName =
+      [user.firstName, user.lastName]
+        .filter((part) => !!part)
+        .join(" ")
+        .trim() || emailParse.split("@")[0];
+
     await mailService({
       to: emailParse,
       subject: "Verifica tu cuenta en Health Friend SRL",
       template: "verification",
       data: {
-        name: `${user.firstName} ${user.lastName}` || emailParse.split("@")[0],
+        name: friendlyName,
         verificationUrl: `${env.CLIENT_URL}/auth/verify?token=${verifyToken}`,
       },
     });
@@ -495,7 +501,7 @@ export const registerAccount = async (req: Request, res: Response) => {
 };
 
 export const verifyAccount = async (req: Request, res: Response) => {
-  const token = req.query.accessToken as string; // cambia el link a ?token=...
+  const token = req.query.token as string; // cambia el link a ?token=...
 
   if (!token) {
     res.status(400).json(ApiResponse.error({ message: "Falta token" }));
@@ -506,6 +512,7 @@ export const verifyAccount = async (req: Request, res: Response) => {
     const { id } = verifyEmailToken(token) as { id: string }; // valida firma + propósito + exp
 
     const user = await prisma.user.findUnique({ where: { id } });
+
     if (!user) {
       res
         .status(404)
