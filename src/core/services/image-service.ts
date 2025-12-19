@@ -17,10 +17,27 @@ type DeletionQueueEntry = {
 
 let deletionQueueCache: DeletionQueueEntry[] | null = null;
 
+const MAX_IMAGE_WIDTH = 1600;
+const WEBP_OPTIONS: sharp.WebpOptions = {
+  quality: 82,
+  alphaQuality: 85,
+  smartSubsample: true,
+  effort: 5,
+};
+
+export interface OptimizedImageResult {
+  path: string;
+  folder: string;
+  filename: string;
+  url: string;
+  size: number;
+  mimeType: string;
+}
+
 export const optimizeAndSaveImage = async (
   buffer: Buffer,
   folder: string
-): Promise<string> => {
+): Promise<OptimizedImageResult> => {
   const filename = `${randomUUIDv7()}.webp`;
   const targetDir = path.join(UPLOAD_ROOT, folder);
 
@@ -28,12 +45,26 @@ export const optimizeAndSaveImage = async (
 
   const fullPath = path.join(targetDir, filename);
 
-  await sharp(buffer)
-    .resize({ width: 1000 }) // ajustable
-    .webp({ quality: 80 })
+  const info = await sharp(buffer)
+    .rotate()
+    .resize({
+      width: MAX_IMAGE_WIDTH,
+      fit: "inside",
+      withoutEnlargement: true,
+    })
+    .webp(WEBP_OPTIONS)
     .toFile(fullPath);
 
-  return `/uploads/${folder}/${filename}`;
+  const relativePath = `${folder}/${filename}`;
+
+  return {
+    path: relativePath,
+    folder,
+    filename,
+    url: `/uploads/${relativePath}`,
+    size: info.size ?? 0,
+    mimeType: "image/webp",
+  };
 };
 
 const sanitizeRelativePath = (relativePath: string | null | undefined) => {

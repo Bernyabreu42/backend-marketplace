@@ -2,9 +2,7 @@
   "paths": {
     "/api/upload-image/single": {
       "post": {
-        "tags": [
-          "Upload"
-        ],
+        "tags": ["Upload"],
         "summary": "Subir una imagen",
         "security": [
           {
@@ -29,32 +27,31 @@
                     "description": "Carpeta destino (opcional). Ej: general, products/123"
                   }
                 },
-                "required": [
-                  "image"
-                ]
+                "required": ["image"]
               }
             }
           }
         },
         "responses": {
-          "200": {
-            "description": "OK",
+          "201": {
+            "description": "Imagen almacenada",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "success",
-                    "url"
-                  ],
+                  "required": ["success", "data"],
                   "properties": {
                     "success": {
                       "type": "boolean",
                       "example": true
                     },
-                    "url": {
+                    "message": {
                       "type": "string",
-                      "example": "/uploads/general/abc.jpg"
+                      "example": "Exito"
+                    },
+                    "data": {
+                      "type": "string",
+                      "example": "/uploads/general/abc.webp"
                     }
                   }
                 }
@@ -69,9 +66,7 @@
     },
     "/api/upload-image/multiple": {
       "post": {
-        "tags": [
-          "Upload"
-        ],
+        "tags": ["Upload"],
         "summary": "Subir múltiples imágenes",
         "security": [
           {
@@ -100,37 +95,36 @@
                     "description": "Carpeta destino (opcional)"
                   }
                 },
-                "required": [
-                  "images"
-                ]
+                "required": ["images"]
               }
             }
           }
         },
         "responses": {
-          "200": {
-            "description": "OK",
+          "201": {
+            "description": "Imágenes almacenadas",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "success",
-                    "urls"
-                  ],
+                  "required": ["success", "data"],
                   "properties": {
                     "success": {
                       "type": "boolean",
                       "example": true
                     },
-                    "urls": {
+                    "message": {
+                      "type": "string",
+                      "example": "Exito"
+                    },
+                    "data": {
                       "type": "array",
                       "items": {
                         "type": "string"
                       },
                       "example": [
-                        "/uploads/general/a.jpg",
-                        "/uploads/general/b.jpg"
+                        "/uploads/general/a.webp",
+                        "/uploads/general/b.webp"
                       ]
                     }
                   }
@@ -142,6 +136,313 @@
             "description": "Archivos faltantes o formato inválido"
           }
         }
+      }
+    },
+    "/api/upload-image/assets": {
+      "get": {
+        "tags": ["Upload"],
+        "summary": "Listar archivos cargados",
+        "security": [
+          {
+            "basicAuth": [],
+            "accessCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "folder",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Filtrar por carpeta específica"
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Texto para buscar en nombre de archivo"
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/UploadAssetType"
+            },
+            "description": "Filtrar por tipo (image, video, audio, document, other, all)"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 24
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Listado paginado de archivos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["success", "data"],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Exito"
+                    },
+                    "data": {
+                      "type": "object",
+                      "required": ["items", "total", "page", "pageSize", "folders"],
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/UploadAsset"
+                          }
+                        },
+                        "total": {
+                          "type": "integer",
+                          "example": 42
+                        },
+                        "page": {
+                          "type": "integer",
+                          "example": 1
+                        },
+                        "pageSize": {
+                          "type": "integer",
+                          "example": 24
+                        },
+                        "folders": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          },
+                          "example": ["general", "products", "site-content"]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "No se pudo listar el contenido"
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Upload"],
+        "summary": "Eliminar un archivo subido",
+        "security": [
+          {
+            "basicAuth": [],
+            "accessCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "path",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Ruta relativa dentro de uploads. Ej: site-content/imagen.webp"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Archivo eliminado o encolado para eliminación",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["success", "message"],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Archivo eliminado"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "El parámetro path es obligatorio"
+          }
+        }
+      }
+    },
+    "/api/upload-image/assets/rename": {
+      "patch": {
+        "tags": ["Upload"],
+        "summary": "Renombrar un archivo subido",
+        "security": [
+          {
+            "basicAuth": [],
+            "accessCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["from", "to"],
+                "properties": {
+                  "from": {
+                    "type": "string",
+                    "example": "site-content/old.webp",
+                    "description": "Ruta actual relativa dentro de uploads/"
+                  },
+                  "to": {
+                    "type": "string",
+                    "example": "site-content/new.webp",
+                    "description": "Nueva ruta relativa (incluye la carpeta)"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Archivo renombrado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["success", "message", "data"],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Archivo renombrado"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/UploadAsset"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Parámetros inválidos"
+          },
+          "500": {
+            "description": "No se pudo renombrar el archivo"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "UploadAsset": {
+        "type": "object",
+        "required": [
+          "id",
+          "path",
+          "folder",
+          "filename",
+          "url",
+          "extension",
+          "type",
+          "size",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "asset_123"
+          },
+          "path": {
+            "type": "string",
+            "example": "site-content/hero/abc.webp"
+          },
+          "ownerId": {
+            "type": "string",
+            "nullable": true,
+            "example": "user_123"
+          },
+          "folder": {
+            "type": "string",
+            "example": "site-content"
+          },
+          "filename": {
+            "type": "string",
+            "example": "abc.webp"
+          },
+          "url": {
+            "type": "string",
+            "example": "/uploads/site-content/abc.webp"
+          },
+          "extension": {
+            "type": "string",
+            "example": "webp"
+          },
+          "mimeType": {
+            "type": "string",
+            "nullable": true,
+            "example": "image/webp"
+          },
+          "type": {
+            "$ref": "#/components/schemas/UploadAssetType"
+          },
+          "isGlobal": {
+            "type": "boolean",
+            "example": false
+          },
+          "size": {
+            "type": "integer",
+            "example": 24567,
+            "description": "Peso en bytes"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "UploadAssetType": {
+        "type": "string",
+        "enum": ["image", "video", "audio", "document", "other", "all"]
       }
     }
   }

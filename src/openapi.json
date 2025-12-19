@@ -899,24 +899,28 @@
           }
         },
         "responses": {
-          "200": {
-            "description": "OK",
+          "201": {
+            "description": "Imagen almacenada",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "required": [
                     "success",
-                    "url"
+                    "data"
                   ],
                   "properties": {
                     "success": {
                       "type": "boolean",
                       "example": true
                     },
-                    "url": {
+                    "message": {
                       "type": "string",
-                      "example": "/uploads/general/abc.jpg"
+                      "example": "Exito"
+                    },
+                    "data": {
+                      "type": "string",
+                      "example": "/uploads/general/abc.webp"
                     }
                   }
                 }
@@ -970,29 +974,33 @@
           }
         },
         "responses": {
-          "200": {
-            "description": "OK",
+          "201": {
+            "description": "Imágenes almacenadas",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "required": [
                     "success",
-                    "urls"
+                    "data"
                   ],
                   "properties": {
                     "success": {
                       "type": "boolean",
                       "example": true
                     },
-                    "urls": {
+                    "message": {
+                      "type": "string",
+                      "example": "Exito"
+                    },
+                    "data": {
                       "type": "array",
                       "items": {
                         "type": "string"
                       },
                       "example": [
-                        "/uploads/general/a.jpg",
-                        "/uploads/general/b.jpg"
+                        "/uploads/general/a.webp",
+                        "/uploads/general/b.webp"
                       ]
                     }
                   }
@@ -1002,6 +1010,263 @@
           },
           "400": {
             "description": "Archivos faltantes o formato inválido"
+          }
+        }
+      }
+    },
+    "/api/upload-image/assets": {
+      "get": {
+        "tags": [
+          "Upload"
+        ],
+        "summary": "Listar archivos cargados",
+        "security": [
+          {
+            "basicAuth": [],
+            "accessCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "folder",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Filtrar por carpeta específica"
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Texto para buscar en nombre de archivo"
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/UploadAssetType"
+            },
+            "description": "Filtrar por tipo (image, video, audio, document, other, all)"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 24
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Listado paginado de archivos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Exito"
+                    },
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "items",
+                        "total",
+                        "page",
+                        "pageSize",
+                        "folders"
+                      ],
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/UploadAsset"
+                          }
+                        },
+                        "total": {
+                          "type": "integer",
+                          "example": 42
+                        },
+                        "page": {
+                          "type": "integer",
+                          "example": 1
+                        },
+                        "pageSize": {
+                          "type": "integer",
+                          "example": 24
+                        },
+                        "folders": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          },
+                          "example": [
+                            "general",
+                            "products",
+                            "site-content"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "No se pudo listar el contenido"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Upload"
+        ],
+        "summary": "Eliminar un archivo subido",
+        "security": [
+          {
+            "basicAuth": [],
+            "accessCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "path",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Ruta relativa dentro de uploads. Ej: site-content/imagen.webp"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Archivo eliminado o encolado para eliminación",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "message"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Archivo eliminado"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "El parámetro path es obligatorio"
+          }
+        }
+      }
+    },
+    "/api/upload-image/assets/rename": {
+      "patch": {
+        "tags": [
+          "Upload"
+        ],
+        "summary": "Renombrar un archivo subido",
+        "security": [
+          {
+            "basicAuth": [],
+            "accessCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "from",
+                  "to"
+                ],
+                "properties": {
+                  "from": {
+                    "type": "string",
+                    "example": "site-content/old.webp",
+                    "description": "Ruta actual relativa dentro de uploads/"
+                  },
+                  "to": {
+                    "type": "string",
+                    "example": "site-content/new.webp",
+                    "description": "Nueva ruta relativa (incluye la carpeta)"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Archivo renombrado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "message",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Archivo renombrado"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/UploadAsset"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Parámetros inválidos"
+          },
+          "500": {
+            "description": "No se pudo renombrar el archivo"
           }
         }
       }
@@ -2190,6 +2455,36 @@
           },
           "403": {
             "description": "No autorizado"
+          }
+        }
+      }
+    },
+    "/api/categories/tree": {
+      "get": {
+        "tags": [
+          "Category"
+        ],
+        "summary": "Obtener árbol de categorías",
+        "parameters": [
+          {
+            "name": "featured",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            },
+            "description": "Cuando es true solo devuelve las categorías destacadas"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Árbol de navegación",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoryTreeResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -4841,6 +5136,901 @@
           }
         }
       }
+    },
+    "/api/site-content/public": {
+      "get": {
+        "tags": [
+          "Site Content"
+        ],
+        "summary": "Obtener contenido público",
+        "responses": {
+          "200": {
+            "description": "Contenido para componer la landing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "modal": {
+                          "$ref": "#/components/schemas/PromoModal"
+                        },
+                        "modalsByKind": {
+                          "type": "object",
+                          "properties": {
+                            "promo": {
+                              "$ref": "#/components/schemas/PromoModal"
+                            },
+                            "info": {
+                              "$ref": "#/components/schemas/PromoModal"
+                            },
+                            "cookies": {
+                              "$ref": "#/components/schemas/PromoModal"
+                            },
+                            "alert": {
+                              "$ref": "#/components/schemas/PromoModal"
+                            }
+                          },
+                          "additionalProperties": {
+                            "$ref": "#/components/schemas/PromoModal"
+                          }
+                        },
+                        "announcement": {
+                          "$ref": "#/components/schemas/AnnouncementBar"
+                        },
+                        "carousel": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/CarouselSlide"
+                          }
+                        },
+                        "company": {
+                          "$ref": "#/components/schemas/CompanyProfile"
+                        },
+                        "legal": {
+                          "type": "object",
+                          "additionalProperties": {
+                            "$ref": "#/components/schemas/LegalDocument"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/site-content/modal": {
+      "get": {
+        "tags": [
+          "Site Content"
+        ],
+        "summary": "Modal activo",
+        "responses": {
+          "200": {
+            "description": "Modal vigente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromoModalResponse"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "Sin modal activo"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Site Content"
+        ],
+        "summary": "Crear modal",
+        "security": [
+          {
+            "basicAuth": [],
+            "accessCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PromoModalCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Modal creado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromoModalResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/site-content/modal/{id}": {
+      "patch": {
+        "tags": [
+          "Site Content"
+        ],
+        "summary": "Actualizar modal",
+        "security": [
+          {
+            "basicAuth": [],
+            "accessCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PromoModalUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Modal actualizado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromoModalResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No encontrado"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Site Content"
+        ],
+        "summary": "Eliminar modal",
+        "security": [
+          {
+            "basicAuth": [],
+            "accessCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Eliminado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseMessage"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No encontrado"
+          }
+        }
+      }
+    },
+    "/api/site-content/modals": {
+      "get": {
+        "tags": [
+          "Site Content"
+        ],
+        "summary": "Listado de modales",
+        "security": [
+          {
+            "basicAuth": [],
+            "accessCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Array de modales",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/PromoModal"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/site-content/announcement": {
+      "get": {
+        "tags": [
+          "Site Content"
+        ],
+        "summary": "Anuncio activo",
+        "responses": {
+          "200": {
+            "description": "Anuncio",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnnouncementResponse"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "Sin anuncio"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Site Content"
+        ],
+        "summary": "Crear anuncio",
+        "security": [
+          {
+            "basicAuth": [],
+            "accessCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnnouncementRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Creado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnnouncementResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/site-content/announcement/{id}": {
+      "patch": {
+        "tags": [
+          "Site Content"
+        ],
+        "summary": "Actualizar anuncio",
+        "security": [
+          {
+            "basicAuth": [],
+            "accessCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnnouncementRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Actualizado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnnouncementResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No encontrado"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Site Content"
+        ],
+        "summary": "Eliminar anuncio",
+        "security": [
+          {
+            "basicAuth": [],
+            "accessCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Eliminado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseMessage"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No encontrado"
+          }
+        }
+      }
+    },
+    "/api/site-content/announcements": {
+      "get": {
+        "tags": [
+          "Site Content"
+        ],
+        "summary": "Listar anuncios",
+        "security": [
+          {
+            "basicAuth": [],
+            "accessCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Anuncios",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/AnnouncementBar"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/site-content/carousel": {
+      "get": {
+        "tags": [
+          "Site Content"
+        ],
+        "summary": "Slides activos",
+        "responses": {
+          "200": {
+            "description": "Slides",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CarouselListResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Site Content"
+        ],
+        "summary": "Crear slide",
+        "security": [
+          {
+            "basicAuth": [],
+            "accessCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CarouselSlideRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Slide creado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CarouselSlideResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/site-content/carousel/{id}": {
+      "patch": {
+        "tags": [
+          "Site Content"
+        ],
+        "summary": "Actualizar slide",
+        "security": [
+          {
+            "basicAuth": [],
+            "accessCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CarouselSlideRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Actualizado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CarouselSlideResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No encontrado"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Site Content"
+        ],
+        "summary": "Eliminar slide",
+        "security": [
+          {
+            "basicAuth": [],
+            "accessCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Eliminado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseMessage"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No encontrado"
+          }
+        }
+      }
+    },
+    "/api/site-content/carousel/all": {
+      "get": {
+        "tags": [
+          "Site Content"
+        ],
+        "summary": "Listado completo de slides",
+        "security": [
+          {
+            "basicAuth": [],
+            "accessCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Slides",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CarouselListResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/site-content/company": {
+      "get": {
+        "tags": [
+          "Site Content"
+        ],
+        "summary": "Información de la empresa",
+        "responses": {
+          "200": {
+            "description": "Perfil",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompanyProfileResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Site Content"
+        ],
+        "summary": "Actualizar perfil",
+        "security": [
+          {
+            "basicAuth": [],
+            "accessCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompanyProfileRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Actualizado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompanyProfileResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/site-content/company/admin": {
+      "get": {
+        "tags": [
+          "Site Content"
+        ],
+        "summary": "Perfil para panel",
+        "security": [
+          {
+            "basicAuth": [],
+            "accessCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Perfil",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompanyProfileResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/site-content/legal": {
+      "get": {
+        "tags": [
+          "Site Content"
+        ],
+        "summary": "Listar documentos",
+        "security": [
+          {
+            "basicAuth": [],
+            "accessCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Documentos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/LegalDocument"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Site Content"
+        ],
+        "summary": "Crear documento",
+        "security": [
+          {
+            "basicAuth": [],
+            "accessCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LegalDocumentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Documento creado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegalDocumentResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/site-content/legal/{id}": {
+      "patch": {
+        "tags": [
+          "Site Content"
+        ],
+        "summary": "Actualizar documento",
+        "security": [
+          {
+            "basicAuth": [],
+            "accessCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LegalDocumentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Actualizado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegalDocumentResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No encontrado"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Site Content"
+        ],
+        "summary": "Eliminar documento",
+        "security": [
+          {
+            "basicAuth": [],
+            "accessCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Eliminado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseMessage"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No encontrado"
+          }
+        }
+      }
+    },
+    "/api/site-content/legal/{type}": {
+      "get": {
+        "tags": [
+          "Site Content"
+        ],
+        "summary": "Documento público por tipo",
+        "parameters": [
+          {
+            "name": "type",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "terms",
+                "privacy",
+                "cookies",
+                "returns",
+                "shipping",
+                "custom"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Documento",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegalDocumentResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No encontrado"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -5499,6 +6689,88 @@
             "description": "URL o ruta local (/uploads/...)"
           }
         }
+      },
+      "UploadAsset": {
+        "type": "object",
+        "required": [
+          "id",
+          "path",
+          "folder",
+          "filename",
+          "url",
+          "extension",
+          "type",
+          "size",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "asset_123"
+          },
+          "path": {
+            "type": "string",
+            "example": "site-content/hero/abc.webp"
+          },
+          "ownerId": {
+            "type": "string",
+            "nullable": true,
+            "example": "user_123"
+          },
+          "folder": {
+            "type": "string",
+            "example": "site-content"
+          },
+          "filename": {
+            "type": "string",
+            "example": "abc.webp"
+          },
+          "url": {
+            "type": "string",
+            "example": "/uploads/site-content/abc.webp"
+          },
+          "extension": {
+            "type": "string",
+            "example": "webp"
+          },
+          "mimeType": {
+            "type": "string",
+            "nullable": true,
+            "example": "image/webp"
+          },
+          "type": {
+            "$ref": "#/components/schemas/UploadAssetType"
+          },
+          "isGlobal": {
+            "type": "boolean",
+            "example": false
+          },
+          "size": {
+            "type": "integer",
+            "example": 24567,
+            "description": "Peso en bytes"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "UploadAssetType": {
+        "type": "string",
+        "enum": [
+          "image",
+          "video",
+          "audio",
+          "document",
+          "other",
+          "all"
+        ]
       },
       "Product": {
         "type": "object",
@@ -6302,6 +7574,23 @@
           "slug": {
             "type": "string"
           },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "parentId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "order": {
+            "type": "integer",
+            "example": 0
+          },
+          "isFeatured": {
+            "type": "boolean",
+            "example": false
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -6309,6 +7598,12 @@
           "updatedAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "children": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Category"
+            }
           }
         }
       },
@@ -6323,6 +7618,19 @@
           },
           "slug": {
             "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "parentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "order": {
+            "type": "integer"
+          },
+          "isFeatured": {
+            "type": "boolean"
           }
         }
       },
@@ -6334,6 +7642,19 @@
           },
           "slug": {
             "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "parentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "order": {
+            "type": "integer"
+          },
+          "isFeatured": {
+            "type": "boolean"
           }
         }
       },
@@ -6356,6 +7677,25 @@
           },
           "pagination": {
             "$ref": "#/components/schemas/PaginationMeta"
+          }
+        }
+      },
+      "CategoryTreeResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "example": "Categorías agrupadas"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Category"
+            }
           }
         }
       },
@@ -8401,6 +9741,581 @@
             }
           }
         }
+      },
+      "PromoModal": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "imageUrl": {
+            "type": "string"
+          },
+          "altText": {
+            "type": "string",
+            "nullable": true
+          },
+          "targetUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "promo",
+              "info",
+              "cookies",
+              "alert"
+            ]
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "priority": {
+            "type": "integer"
+          },
+          "startsAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "endsAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "PromoModalCreateRequest": {
+        "type": "object",
+        "required": [
+          "imageUrl"
+        ],
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "imageUrl": {
+            "type": "string",
+            "format": "uri"
+          },
+          "altText": {
+            "type": "string"
+          },
+          "targetUrl": {
+            "type": "string",
+            "format": "uri"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "promo",
+              "info",
+              "cookies",
+              "alert"
+            ]
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "startsAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "endsAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "priority": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          }
+        }
+      },
+      "PromoModalUpdateRequest": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PromoModalCreateRequest"
+          }
+        ]
+      },
+      "PromoModalResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/PromoModal"
+          }
+        }
+      },
+      "AnnouncementBar": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "message": {
+            "type": "string"
+          },
+          "targetUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "backgroundColor": {
+            "type": "string",
+            "nullable": true
+          },
+          "textColor": {
+            "type": "string",
+            "nullable": true
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "startsAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "endsAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AnnouncementRequest": {
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "targetUrl": {
+            "type": "string",
+            "format": "uri"
+          },
+          "backgroundColor": {
+            "type": "string"
+          },
+          "textColor": {
+            "type": "string"
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "startsAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "endsAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AnnouncementResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/AnnouncementBar"
+          }
+        }
+      },
+      "CarouselSlide": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "subtitle": {
+            "type": "string",
+            "nullable": true
+          },
+          "imageUrl": {
+            "type": "string"
+          },
+          "altText": {
+            "type": "string",
+            "nullable": true
+          },
+          "targetUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "order": {
+            "type": "integer"
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "startsAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "endsAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        }
+      },
+      "CarouselSlideRequest": {
+        "type": "object",
+        "required": [
+          "imageUrl"
+        ],
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "subtitle": {
+            "type": "string"
+          },
+          "imageUrl": {
+            "type": "string",
+            "format": "uri"
+          },
+          "altText": {
+            "type": "string"
+          },
+          "targetUrl": {
+            "type": "string",
+            "format": "uri"
+          },
+          "order": {
+            "type": "integer"
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "startsAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "endsAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CarouselSlideResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/CarouselSlide"
+          }
+        }
+      },
+      "CarouselListResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CarouselSlide"
+            }
+          }
+        }
+      },
+      "CompanyProfile": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "tagline": {
+            "type": "string",
+            "nullable": true
+          },
+          "about": {
+            "type": "string",
+            "nullable": true
+          },
+          "mission": {
+            "type": "string",
+            "nullable": true
+          },
+          "vision": {
+            "type": "string",
+            "nullable": true
+          },
+          "values": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          },
+          "email": {
+            "type": "string",
+            "nullable": true
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true
+          },
+          "whatsapp": {
+            "type": "string",
+            "nullable": true
+          },
+          "address": {
+            "type": "object",
+            "nullable": true
+          },
+          "mapUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "logoUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "supportHours": {
+            "type": "string",
+            "nullable": true
+          },
+          "socialLinks": {
+            "type": "object",
+            "nullable": true
+          }
+        }
+      },
+      "CompanyProfileRequest": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "tagline": {
+            "type": "string"
+          },
+          "about": {
+            "type": "string"
+          },
+          "mission": {
+            "type": "string"
+          },
+          "vision": {
+            "type": "string"
+          },
+          "values": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "whatsapp": {
+            "type": "string"
+          },
+          "address": {
+            "type": "object"
+          },
+          "mapUrl": {
+            "type": "string",
+            "format": "uri"
+          },
+          "logoUrl": {
+            "type": "string",
+            "format": "uri"
+          },
+          "supportHours": {
+            "type": "string"
+          },
+          "socialLinks": {
+            "type": "object"
+          }
+        }
+      },
+      "CompanyProfileResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/CompanyProfile"
+          }
+        }
+      },
+      "LegalDocument": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "terms",
+              "privacy",
+              "cookies",
+              "returns",
+              "shipping",
+              "custom"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string",
+            "nullable": true
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "publishedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "LegalDocumentRequest": {
+        "type": "object",
+        "required": [
+          "type",
+          "title",
+          "content"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "terms",
+              "privacy",
+              "cookies",
+              "returns",
+              "shipping",
+              "custom"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "publishedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "LegalDocumentResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/LegalDocument"
+          }
+        }
       }
     },
     "securitySchemes": {
@@ -8472,6 +10387,10 @@
       "name": "Favorites"
     },
     {
+      "name": "Site Content",
+      "description": "Gestión de banners, carruseles y documentos legales"
+    },
+    {
       "name": "Loyalty",
       "description": "Programa de puntos y cashback"
     },
@@ -8487,12 +10406,12 @@
   },
   "servers": [
     {
-      "url": "http://localhost:4000",
-      "description": "Local"
+      "url": "https://backend-marketplace-62ht.onrender.com",
+      "description": "Render"
     },
     {
-      "url": "https://api.marketplace.bernyabreu.dev",
-      "description": "Production"
+      "url": "http://localhost:4000",
+      "description": "Local"
     }
   ]
 }
