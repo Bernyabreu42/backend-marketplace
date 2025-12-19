@@ -167,6 +167,61 @@ export const recordUploadAsset = async ({
   return mapAsset(asset);
 };
 
+const updateReferencedUrls = async (oldUrl: string, newUrl: string) => {
+  const tasks: Promise<unknown>[] = [
+    prisma.user.updateMany({
+      where: { profileImage: oldUrl },
+      data: { profileImage: newUrl },
+    }),
+    prisma.store.updateMany({ where: { logo: oldUrl }, data: { logo: newUrl } }),
+    prisma.store.updateMany({ where: { banner: oldUrl }, data: { banner: newUrl } }),
+    prisma.store.updateMany({
+      where: { profileImage: oldUrl },
+      data: { profileImage: newUrl },
+    }),
+    prisma.store.updateMany({
+      where: { bannerImage: oldUrl },
+      data: { bannerImage: newUrl },
+    }),
+    prisma.promoModal.updateMany({
+      where: { imageUrl: oldUrl },
+      data: { imageUrl: newUrl },
+    }),
+    prisma.carouselSlide.updateMany({
+      where: { imageUrl: oldUrl },
+      data: { imageUrl: newUrl },
+    }),
+    prisma.companyProfile.updateMany({
+      where: { logoUrl: oldUrl },
+      data: { logoUrl: newUrl },
+    }),
+  ];
+
+  const products = await prisma.product.findMany({
+    where: { images: { has: oldUrl } },
+    select: { id: true, images: true },
+  });
+
+  if (products.length) {
+    tasks.push(
+      ...products.map((product) =>
+        prisma.product.update({
+          where: { id: product.id },
+          data: {
+            images: {
+              set: product.images.map((image) =>
+                image === oldUrl ? newUrl : image,
+              ),
+            },
+          },
+        }),
+      ),
+    );
+  }
+
+  await Promise.all(tasks);
+};
+
 let legacySyncResolved = false;
 
 const ensureLegacyAssetsSynced = async () => {
@@ -356,6 +411,8 @@ export const renameUploadAsset = async (
 
   const folderName = sanitizeFolder(path.dirname(target));
   const filename = path.basename(target);
+  const oldUrl = `/uploads/${source}`;
+  const newUrl = `/uploads/${target}`;
 
   const updated = await prisma.uploadAsset.update({
     where: { id: asset.id },
@@ -363,9 +420,11 @@ export const renameUploadAsset = async (
       path: target,
       folder: folderName,
       filename,
-      url: `/uploads/${target}`,
+      url: newUrl,
     },
   });
+
+  await updateReferencedUrls(oldUrl, newUrl);
 
   return mapAsset(updated);
 };
