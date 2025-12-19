@@ -175,14 +175,6 @@ const updateReferencedUrls = async (oldUrl: string, newUrl: string) => {
     }),
     prisma.store.updateMany({ where: { logo: oldUrl }, data: { logo: newUrl } }),
     prisma.store.updateMany({ where: { banner: oldUrl }, data: { banner: newUrl } }),
-    prisma.store.updateMany({
-      where: { profileImage: oldUrl },
-      data: { profileImage: newUrl },
-    }),
-    prisma.store.updateMany({
-      where: { bannerImage: oldUrl },
-      data: { bannerImage: newUrl },
-    }),
     prisma.promoModal.updateMany({
       where: { imageUrl: oldUrl },
       data: { imageUrl: newUrl },
