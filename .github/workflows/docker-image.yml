@@ -67,4 +67,4 @@ jobs:
         env:
           DOCKPLOY_TOKEN: ${{ secrets.DOCKPLOY_TOKEN }}
         run: |
-          npx dockploy sync backend --commit ${{ github.sha }}
+          npx @dockploy/cli sync backend --commit ${{ github.sha }}
