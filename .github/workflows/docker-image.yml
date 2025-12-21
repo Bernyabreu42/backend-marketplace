@@ -61,3 +61,10 @@ jobs:
 
       - name: Show image digest
         run: echo "Image digest ${{ steps.meta.outputs.tags }} -> ${{ steps.build.outputs.digest }}"
+
+      - name: Deploy with Dockploy
+        if: github.event_name == 'push'
+        env:
+          DOCKPLOY_TOKEN: ${{ secrets.DOCKPLOY_TOKEN }}
+        run: |
+          npx dockploy sync backend --commit ${{ github.sha }}
