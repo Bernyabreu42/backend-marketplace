@@ -13,7 +13,7 @@ import {
 const router = Router();
 const upload = multer();
 
-router.use(routeProtector([RolesEnum.ADMIN, RolesEnum.SELLER, RolesEnum.SUPPORT]));
+router.use(routeProtector());
 
 router.get("/assets", listUploadResources);
 router.delete("/assets", deleteUploadResource);

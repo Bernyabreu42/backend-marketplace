@@ -26,6 +26,22 @@ import {
 } from "./services/search.service";
 import { findFavoriteProductIds } from "./services/favorite.service";
 
+const normalizeSkuValue = (
+  value: unknown
+): string | null | undefined => {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (value === null) {
+    return null;
+  }
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed === "" ? null : trimmed;
+  }
+  return undefined;
+};
+
 export const getAllProducts = async (req: Request, res: Response) => {
   try {
     const requester = await resolveRequester(req);
@@ -715,7 +731,15 @@ export const searchProductsByStore = async (req: Request, res: Response) => {
 
 export const createProduct = async (req: Request, res: Response) => {
   try {
-    const parsed = ProductSchema.safeParse(req.body);
+    const incoming = req.body ?? {};
+    if (
+      incoming.taxes === undefined &&
+      Array.isArray(incoming.taxIds)
+    ) {
+      incoming.taxes = incoming.taxIds;
+    }
+
+    const parsed = ProductSchema.safeParse(incoming);
 
     if (!parsed.success) {
       res.status(400).json(
@@ -735,11 +759,17 @@ export const createProduct = async (req: Request, res: Response) => {
       return;
     }
 
-    const { categories = [], taxes = [], discountId, ...data } = parsed.data;
+    const {
+      categories = [],
+      taxes = [],
+      discountId,
+      sku,
+      ...productData
+    } = parsed.data;
 
     // Validar tienda y ownership
     const store = await prisma.store.findUnique({
-      where: { id: data.storeId },
+      where: { id: productData.storeId },
       select: { id: true, ownerId: true },
     });
     if (!store) {
@@ -771,12 +801,16 @@ export const createProduct = async (req: Request, res: Response) => {
       }
     }
 
-    const finalPrice = computePriceWithDiscount(data.price, applicableDiscount);
+    const finalPrice = computePriceWithDiscount(
+      productData.price,
+      applicableDiscount
+    );
 
     // Crear producto + relaciones (categorías M:N y taxes vía tabla puente)
     const product = await prisma.product.create({
       data: {
-        ...data,
+        ...productData,
+        sku: normalizeSkuValue(sku) ?? null,
         priceFinal: finalPrice,
         discountId: applicableDiscount?.id ?? null,
         ...(categories.length
@@ -936,7 +970,14 @@ export const updateProduct = async (req: Request, res: Response) => {
     return;
   }
 
-  const parsed = UpdateProductSchema.safeParse(req.body);
+  const incoming = req.body ?? {};
+  if (
+    incoming.taxes === undefined &&
+    Array.isArray(incoming.taxIds)
+  ) {
+    incoming.taxes = incoming.taxIds;
+  }
+  const parsed = UpdateProductSchema.safeParse(incoming);
   if (!parsed.success) {
     res.status(400).json(ApiResponse.error({ error: parsed.error.format() }));
     return;
@@ -1039,11 +1080,9 @@ export const updateProduct = async (req: Request, res: Response) => {
         discountId: finalDiscountId,
       };
 
-      if (sku !== undefined) {
-        payload.sku =
-          sku === null || (typeof sku === "string" && sku.trim() === "")
-            ? null
-            : sku;
+      const normalizedSku = normalizeSkuValue(sku);
+      if (normalizedSku !== undefined) {
+        payload.sku = normalizedSku;
       }
 
       // Reemplaza categorias si se envian
@@ -1222,18 +1261,95 @@ export const getRelatedProducts = async (req: Request, res: Response) => {
       return;
     }
 
+    const curatedIds = product.relatedProducts.map((related) => related.id);
     let favoritesSet: Set<string> | null = null;
     if (requester?.id) {
       favoritesSet = await findFavoriteProductIds(
         requester.id,
-        product.relatedProducts.map((related) => related.id)
+        curatedIds
       );
     }
 
-    const related = product.relatedProducts.map((relatedProduct) => ({
-      ...relatedProduct,
-      isFavorite: favoritesSet?.has(relatedProduct.id) ?? false,
-    }));
+    const curated = product.relatedProducts
+      .slice(0, 10)
+      .map((relatedProduct) => ({
+        ...relatedProduct,
+        isFavorite: favoritesSet?.has(relatedProduct.id) ?? false,
+        source: "manual" as const,
+      }));
+
+    const remainingSlots = Math.max(0, 10 - curated.length);
+    let automated: Array<typeof curated[number]> = [];
+
+    if (remainingSlots > 0) {
+      const categoryIds = product.categories.map((category) => category.id);
+
+      if (categoryIds.length > 0) {
+        const autoProducts = await prisma.product.findMany({
+          where: {
+            id: { notIn: [product.id, ...curatedIds] },
+            status: "active",
+            store: { status: "active", isDeleted: false },
+            categories: { some: { id: { in: categoryIds } } },
+          },
+          include: {
+            discount: true,
+            _count: { select: { review: true } },
+            store: {
+              select: {
+                id: true,
+                name: true,
+                address: true,
+              },
+            },
+            taxes: {
+              select: {
+                tax: {
+                  select: {
+                    id: true,
+                    name: true,
+                    type: true,
+                    rate: true,
+                    description: true,
+                  },
+                },
+              },
+            },
+            categories: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+          take: remainingSlots,
+          orderBy: [
+            { orderItem: { _count: "desc" } },
+            { updatedAt: "desc" },
+          ],
+        });
+
+        if (requester?.id && autoProducts.length) {
+          const autoFavorites = await findFavoriteProductIds(
+            requester.id,
+            autoProducts.map((auto) => auto.id)
+          );
+          automated = autoProducts.map((autoProduct) => ({
+            ...autoProduct,
+            isFavorite: autoFavorites?.has(autoProduct.id) ?? false,
+            source: "auto" as const,
+          }));
+        } else {
+          automated = autoProducts.map((autoProduct) => ({
+            ...autoProduct,
+            source: "auto" as const,
+            isFavorite: false,
+          }));
+        }
+      }
+    }
+
+    const related = [...curated, ...automated].slice(0, 10);
 
     res.json(
       ApiResponse.success({

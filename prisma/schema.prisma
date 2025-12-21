@@ -613,6 +613,7 @@ model CompanyProfile {
   address       Json?
   mapUrl        String?
   logoUrl       String?
+  faviconUrl    String?
   supportHours  String?
   socialLinks   Json?
   createdAt     DateTime @default(now())

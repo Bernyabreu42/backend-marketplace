@@ -64,6 +64,10 @@
     },
     {
       "name": "Favorites"
+    },
+    {
+      "name": "Site Content",
+      "description": "Recursos visuales y legales del storefront"
     }
   ],
   "paths": {},

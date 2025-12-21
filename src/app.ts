@@ -24,6 +24,7 @@ import blogRoutes from "./modules/blog/blog.routes";
 import reviewsRoutes from "./modules/reviews/reviews.routes";
 import favoritesRoutes from "./modules/favorites/favorites.routes";
 import addressesRoutes from "./modules/addresses/addresses.routes";
+import siteContentRoutes from "./modules/site-content/siteContent.routes";
 const app = express();
 
 app.use(express.json());
@@ -67,6 +68,29 @@ app.get("/openapi.json", (_req, res) => {
 // Serve the API reference at /api (root only) so consumers see docs there.
 app.get("/api", apiReference({ url: "/openapi.json", theme: "purple" }));
 
+app.use(
+  (
+    err: unknown,
+    _req: express.Request,
+    res: express.Response,
+    next: express.NextFunction
+  ) => {
+    if (
+      err instanceof SyntaxError &&
+      "status" in err &&
+      (err as any).status === 400
+    ) {
+      res
+        .status(400)
+        .json(
+          ApiResponse.error({ message: "JSON invalido en la solicitud" })
+        );
+      return;
+    }
+    next(err);
+  }
+);
+
 app.use(apiKeyGuard);
 
 app.use("/api/auth", authRoutes);
@@ -86,6 +110,7 @@ app.use("/api/reviews", reviewsRoutes);
 app.use("/api/blog", blogRoutes);
 app.use("/api/favorites", favoritesRoutes);
 app.use("/api/addresses", addressesRoutes);
+app.use("/api/site-content", siteContentRoutes);
 
 app.get("*", (_req, res) => {
   res.status(404).send(ApiResponse.error({ message: "Not found" }));

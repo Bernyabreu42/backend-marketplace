@@ -18,6 +18,7 @@ const files = [
   "src/openapi/loyalty.json",
   "src/openapi/orders.json",
   "src/openapi/dashboard.json",
+  "src/openapi/site-content.json",
 ];
 
 const deepMerge = (a: any, b: any) => {

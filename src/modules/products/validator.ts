@@ -1,12 +1,26 @@
 import { z } from "zod";
 
+const skuSchema = z.preprocess(
+  (value) => {
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      return trimmed === "" ? undefined : trimmed;
+    }
+    if (value === null) {
+      return null;
+    }
+    return value;
+  },
+  z.string().trim().optional().nullable()
+);
+
 export const productStatusSchema = z.enum(["active", "inactive", "draft"]);
 
 export const productSchema = z.object({
   id: z.string().uuid().optional(),
   name: z.string().min(1, "El nombre es obligatorio"),
   description: z.string().min(1, "La descripcion es obligatoria"),
-  sku: z.string().optional(),
+  sku: skuSchema,
   price: z.number().min(0, "El precio debe ser mayor o igual a 0"),
   stock: z.number().int().min(0, "El stock no puede ser negativo"),
   images: z.array(z.string()).default([]),

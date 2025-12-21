@@ -4,6 +4,7 @@ import {
   deleteCategory,
   getAllCategories,
   getCategoryById,
+  getCategoriesTree,
   updateCategory,
 } from "./category.controller";
 import { routeProtector } from "../../middlewares/routeProtector";
@@ -13,6 +14,7 @@ const router = Router();
 
 // Públicas
 router.get("/", getAllCategories);
+router.get("/tree", getCategoriesTree);
 // router.get("/store/:storeId", getCategoriesByStore);
 
 // Privadas (solo admin u otros roles permitidos)
@@ -22,4 +24,3 @@ router.patch("/:id", routeProtector([RolesEnum.ADMIN]), updateCategory);
 router.delete("/:id", routeProtector([RolesEnum.ADMIN]), deleteCategory);
 
 export default router;
-

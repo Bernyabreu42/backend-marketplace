@@ -46,6 +46,30 @@
         }
       }
     },
+    "/api/categories/tree": {
+      "get": {
+        "tags": ["Category"],
+        "summary": "Obtener árbol de categorías",
+        "parameters": [
+          {
+            "name": "featured",
+            "in": "query",
+            "schema": { "type": "boolean" },
+            "description": "Cuando es true solo devuelve las categorías destacadas"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Árbol de navegación",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/CategoryTreeResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/categories/{id}": {
       "get": {
         "tags": ["Category"],
@@ -126,8 +150,16 @@
           "id": {"type": "string", "format": "uuid"},
           "name": {"type": "string"},
           "slug": {"type": "string"},
+          "description": {"type": "string", "nullable": true},
+          "parentId": {"type": "string", "format": "uuid", "nullable": true},
+          "order": {"type": "integer", "example": 0},
+          "isFeatured": {"type": "boolean", "example": false},
           "createdAt": {"type": "string", "format": "date-time"},
-          "updatedAt": {"type": "string", "format": "date-time"}
+          "updatedAt": {"type": "string", "format": "date-time"},
+          "children": {
+            "type": "array",
+            "items": {"$ref": "#/components/schemas/Category"}
+          }
         }
       },
       "CategoryCreateRequest": {
@@ -135,14 +167,22 @@
         "required": ["name"],
         "properties": {
           "name": {"type": "string"},
-          "slug": {"type": "string"}
+          "slug": {"type": "string"},
+          "description": {"type": "string"},
+          "parentId": {"type": "string", "format": "uuid"},
+          "order": {"type": "integer"},
+          "isFeatured": {"type": "boolean"}
         }
       },
       "CategoryUpdateRequest": {
         "type": "object",
         "properties": {
           "name": {"type": "string"},
-          "slug": {"type": "string"}
+          "slug": {"type": "string"},
+          "description": {"type": "string"},
+          "parentId": {"type": "string", "format": "uuid"},
+          "order": {"type": "integer"},
+          "isFeatured": {"type": "boolean"}
         }
       },
       "CategoryListResponse": {
@@ -155,6 +195,17 @@
             "items": {"$ref": "#/components/schemas/Category"}
           },
           "pagination": {"$ref": "#/components/schemas/PaginationMeta"}
+        }
+      },
+      "CategoryTreeResponse": {
+        "type": "object",
+        "properties": {
+          "success": {"type": "boolean", "example": true},
+          "message": {"type": "string", "example": "Categorías agrupadas"},
+          "data": {
+            "type": "array",
+            "items": {"$ref": "#/components/schemas/Category"}
+          }
         }
       },
       "CategoryResponse": {
