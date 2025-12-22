@@ -28,6 +28,12 @@ interface VerifyToken {
 const getUserIdFromPayload = (p: any): string | undefined =>
   p && typeof p === "object" ? p.sub ?? p.id : undefined;
 
+const dashboardBaseUrl =
+  env.DASHBOARD_URL ?? `${env.CLIENT_URL.replace(/\/$/, "")}/dashboard`;
+
+const buildDashboardUrl = (path: string) =>
+  `${dashboardBaseUrl.replace(/\/$/, "")}${path}`;
+
 const mapUserPayload = (user: {
   id: string;
   email: string;
@@ -482,7 +488,9 @@ export const registerAccount = async (req: Request, res: Response) => {
       template: "verification",
       data: {
         name: friendlyName,
-        verificationUrl: `${env.CLIENT_URL}/auth/verify?token=${verifyToken}`,
+        verificationUrl: buildDashboardUrl(
+          `/auth/verify?token=${verifyToken}`,
+        ),
       },
     });
 
@@ -577,7 +585,9 @@ export const forgotPassword = async (req: Request, res: Response) => {
     }
 
     const token = generatePasswordResetToken({ id: user.id });
-    const resetLink = `${env.CLIENT_URL}/auth/reset-password?token=${token}`;
+    const resetLink = buildDashboardUrl(
+      `/auth/reset-password?token=${token}`,
+    );
 
     await mailService({
       to: email,
