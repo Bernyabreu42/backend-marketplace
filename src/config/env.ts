@@ -72,6 +72,20 @@ const primaryClientUrl =
   envData.CLIENT_URL ?? origins[0] ?? "http://localhost:5173";
 const clientOrigins = origins.length > 0 ? origins : [primaryClientUrl];
 
+const resolveCookieDomain = (url: string): string | undefined => {
+  try {
+    const hostname = new URL(url).hostname;
+    return hostname || undefined;
+  } catch (error) {
+    return undefined;
+  }
+};
+
+const cookieDomain =
+  envData.NODE_ENV === "production"
+    ? resolveCookieDomain(primaryClientUrl)
+    : undefined;
+
 // console.log({
 //   origins,
 //   primaryClientUrl,
@@ -93,6 +107,7 @@ export const env = {
   JWT_REFRESH_SECRET: envData.JWT_REFRESH_SECRET,
   EMAIL_TOKEN_SECRET: envData.EMAIL_TOKEN_SECRET,
   RESET_SECRET: envData.RESET_SECRET,
+  COOKIE_DOMAIN: cookieDomain,
   MAIL_USER: envData.MAIL_USER,
   MAIL_PASS: envData.MAIL_PASS,
   MAIL_SERVICE: envData.MAIL_SERVICE,

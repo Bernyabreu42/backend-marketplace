@@ -6,6 +6,7 @@ const baseCookie: CookieOptions = {
   secure: env.isProd,
   sameSite: env.isProd ? "none" : "lax",
   path: "/",
+  domain: env.COOKIE_DOMAIN,
 };
 
 export const accessTokenCookie: CookieOptions = {
