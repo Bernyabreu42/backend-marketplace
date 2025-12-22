@@ -10406,7 +10406,7 @@
   },
   "servers": [
     {
-      "url": "https://backend-marketplace-62ht.onrender.com",
+      "url": "https://api.marketplace.bernyabreu.dev",
       "description": "Render"
     },
     {

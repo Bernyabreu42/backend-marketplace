@@ -8,7 +8,6 @@ const envSchema = z.object({
   CLIENTS_URLS: z.string().optional(),
   CLIENT_URL: z.string().url().optional(), // This is the primary client URL
   CLIENT_URLS: z.array(z.string().url()).optional(), // This is an array of client URLs
-  DASHBOARD_URL: z.string().url().optional(),
   SELLER_ONBOARDING_URL: z.string().url().optional(),
   API_USERNAME: z.string().min(1, "API_USERNAME is required"),
   API_PASSWORD: z.string().min(1, "API_PASSWORD is required"),
@@ -71,9 +70,6 @@ const envData = result.data;
 const origins = parseOrigins(envData.CLIENTS_URLS);
 const primaryClientUrl =
   envData.CLIENT_URL ?? origins[0] ?? "http://localhost:5173";
-const dashboardUrl =
-  envData.DASHBOARD_URL ??
-  `${primaryClientUrl.replace(/\/$/, "")}/dashboard`;
 const clientOrigins = origins.length > 0 ? origins : [primaryClientUrl];
 
 const resolveCookieDomain = (url: string): string | undefined => {
@@ -103,7 +99,6 @@ export const env = {
   PORT: envData.PORT,
   CLIENT_URL: primaryClientUrl,
   CLIENTS_URLS: clientOrigins,
-  DASHBOARD_URL: dashboardUrl,
   SELLER_ONBOARDING_URL: envData.SELLER_ONBOARDING_URL,
   CLIENT_ORIGINS: clientOrigins,
   API_USERNAME: envData.API_USERNAME,
