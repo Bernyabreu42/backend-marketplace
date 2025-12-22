@@ -8,6 +8,11 @@ export const apiKeyGuard = (
   res: Response,
   next: NextFunction
 ) => {
+  if (req.path.startsWith("/uploads")) {
+    next();
+    return;
+  }
+
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith("Basic ")) {
