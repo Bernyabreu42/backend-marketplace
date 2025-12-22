@@ -10,8 +10,8 @@ const buildOwnerName = (firstName?: string | null, fallback?: string | null) => 
 };
 
 const dashboardLink = () => {
-  const base = env.CLIENT_URL ?? "https://commercehub.localhost";
-  return `${base.replace(/\/$/, "")}/dashboard/store`;
+  const base = env.DASHBOARD_URL ?? env.CLIENT_URL ?? "https://commercehub.localhost/dashboard";
+  return `${base.replace(/\/$/, "")}/store`;
 };
 
 export const notifyStoreCreated = async (params: {
