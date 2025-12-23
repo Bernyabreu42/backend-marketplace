@@ -393,7 +393,7 @@ export const updateUser = async (req: Request, res: Response) => {
       if (!roleTransitions[currentRole].includes(nextRole)) {
         res.status(400).json(
           ApiResponse.error({
-            message: "Transici¢n de rol no permitida",
+            message: "Transición de rol no permitida",
           })
         );
         return;

@@ -3,9 +3,9 @@ import { z } from "zod";
 
 const preprocessEmptyToUndefined = <T extends z.ZodTypeAny>(schema: T) =>
   z.preprocess((value) => {
-    if (value === "" || value === null) return undefined;
+    if (value === "") return undefined;
     return value;
-  }, schema.optional());
+  }, schema.optional().nullable());
 
 const isValidUrlOrUploadPath = (value: string) => {
   if (value.startsWith("/uploads/")) return true;
