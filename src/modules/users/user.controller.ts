@@ -354,6 +354,52 @@ export const updateUser = async (req: Request, res: Response) => {
       }
     }
 
+    // Validaciones especiales para cambios de rol
+    if (isAdmin && dataToUpdate.role) {
+      const currentUser = await prisma.user.findUnique({
+        where: { id },
+        select: { role: true },
+      });
+
+      if (!currentUser) {
+        res
+          .status(404)
+          .json(ApiResponse.error({ message: "Usuario no encontrado" }));
+        return;
+      }
+
+      const currentRole = currentUser.role as RolesEnum;
+      const nextRole = dataToUpdate.role as RolesEnum;
+
+      const roleTransitions: Record<RolesEnum, RolesEnum[]> = {
+        [RolesEnum.BUYER]: [
+          RolesEnum.BUYER,
+          RolesEnum.SUPPORT,
+          RolesEnum.ADMIN,
+        ],
+        [RolesEnum.SUPPORT]: [
+          RolesEnum.SUPPORT,
+          RolesEnum.ADMIN,
+          RolesEnum.BUYER,
+        ],
+        [RolesEnum.ADMIN]: [
+          RolesEnum.ADMIN,
+          RolesEnum.SUPPORT,
+          RolesEnum.BUYER,
+        ],
+        [RolesEnum.SELLER]: [RolesEnum.SELLER],
+      };
+
+      if (!roleTransitions[currentRole].includes(nextRole)) {
+        res.status(400).json(
+          ApiResponse.error({
+            message: "Transici¢n de rol no permitida",
+          })
+        );
+        return;
+      }
+    }
+
     const updated = await prisma.user.update({
       where: { id },
       data: dataToUpdate,
