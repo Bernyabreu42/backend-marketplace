@@ -1,4 +1,5 @@
 import type { Request, Response } from "express";
+import { randomUUID } from "node:crypto";
 import { ApiResponse } from "../../core/responses/ApiResponse";
 import prisma from "../../database/prisma";
 import { ApiPaginatedResponse } from "../../core/responses/ApiPaginatedResponse";
@@ -40,6 +41,40 @@ const normalizeSkuValue = (
     return trimmed === "" ? null : trimmed;
   }
   return undefined;
+};
+
+const normalizeVariantValue = (
+  value: unknown
+): string | null | undefined => {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (value === null) {
+    return null;
+  }
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed === "" ? null : trimmed;
+  }
+  return undefined;
+};
+
+const resolveVariantImage = ({
+  incomingImage,
+  existingImage,
+  images,
+}: {
+  incomingImage: string | null | undefined;
+  existingImage: string | null;
+  images: string[];
+}) => {
+  if (incomingImage !== undefined) {
+    return incomingImage;
+  }
+  if (existingImage) {
+    return existingImage;
+  }
+  return images[0] ?? null;
 };
 
 export const getAllProducts = async (req: Request, res: Response) => {
@@ -260,11 +295,45 @@ export const getProductById = async (req: Request, res: Response) => {
         )
       : false;
 
+    let variants: Array<{ id: string; label: string; image: string | null }> =
+      [];
+    if (product.variantGroupId) {
+      const canViewVariants = hasStoreVisibility(requester, storeMeta.ownerId);
+      const variantWhere: any = {
+        variantGroupId: product.variantGroupId,
+        storeId: product.storeId,
+      };
+
+      if (!canViewVariants) {
+        variantWhere.status = "active";
+        variantWhere.store = { status: "active", isDeleted: false };
+      }
+
+      const variantRows = await prisma.product.findMany({
+        where: variantWhere,
+        select: {
+          id: true,
+          name: true,
+          variantLabel: true,
+          variantImage: true,
+          images: true,
+        },
+        orderBy: { createdAt: "asc" },
+      });
+
+      variants = variantRows.map((variant) => ({
+        id: variant.id,
+        label: variant.variantLabel ?? variant.name,
+        image: variant.variantImage ?? variant.images?.[0] ?? null,
+      }));
+    }
+
     const data = {
       ...productData,
       store: storePublic,
       taxes,
       isFavorite,
+      variants,
     };
 
     res.json(
@@ -764,6 +833,9 @@ export const createProduct = async (req: Request, res: Response) => {
       taxes = [],
       discountId,
       sku,
+      variantGroupId,
+      variantLabel,
+      variantImage,
       ...productData
     } = parsed.data;
 
@@ -805,6 +877,30 @@ export const createProduct = async (req: Request, res: Response) => {
       productData.price,
       applicableDiscount
     );
+    const normalizedVariantLabel = normalizeVariantValue(variantLabel);
+    const normalizedVariantImage = normalizeVariantValue(variantImage);
+    const shouldCreateVariantGroup =
+      normalizedVariantLabel != null || normalizedVariantImage != null;
+    const resolvedVariantGroupId =
+      variantGroupId ??
+      (shouldCreateVariantGroup ? randomUUID() : undefined);
+    const fallbackVariantImage = resolveVariantImage({
+      incomingImage: normalizedVariantImage,
+      existingImage: null,
+      images: productData.images ?? [],
+    });
+    const variantPayload: Record<string, unknown> = {};
+    if (resolvedVariantGroupId !== undefined) {
+      if (resolvedVariantGroupId === null) {
+        variantPayload.variantGroupId = null;
+        variantPayload.variantLabel = null;
+        variantPayload.variantImage = null;
+      } else {
+        variantPayload.variantGroupId = resolvedVariantGroupId;
+        variantPayload.variantLabel = normalizedVariantLabel ?? null;
+        variantPayload.variantImage = fallbackVariantImage;
+      }
+    }
 
     // Crear producto + relaciones (categorías M:N y taxes vía tabla puente)
     const product = await prisma.product.create({
@@ -813,6 +909,7 @@ export const createProduct = async (req: Request, res: Response) => {
         sku: normalizeSkuValue(sku) ?? null,
         priceFinal: finalPrice,
         discountId: applicableDiscount?.id ?? null,
+        ...variantPayload,
         ...(categories.length
           ? {
               categories: {
@@ -1001,18 +1098,24 @@ export const updateProduct = async (req: Request, res: Response) => {
   }
 
   // Desestructura UNA vez
-  const {
-    categories: categoryIds,
-    taxes: taxIds,
-    discountId,
-    sku,
-    storeId: incomingStoreId,
-    ...rawData
-  } = parsed.data as {
+    const {
+      categories: categoryIds,
+      taxes: taxIds,
+      discountId,
+      sku,
+      variantGroupId,
+      variantLabel,
+      variantImage,
+      storeId: incomingStoreId,
+      ...rawData
+    } = parsed.data as {
     categories?: string[];
     taxes?: string[];
     discountId?: string | null;
     sku?: string | null;
+    variantGroupId?: string | null;
+    variantLabel?: string | null;
+    variantImage?: string | null;
     storeId?: string;
     [k: string]: any;
   };
@@ -1026,6 +1129,25 @@ export const updateProduct = async (req: Request, res: Response) => {
     imagesProvided && Array.isArray(rawData.images)
       ? (rawData.images as string[])
       : undefined;
+
+  const variantGroupIdProvided = Object.prototype.hasOwnProperty.call(
+    parsed.data,
+    "variantGroupId"
+  );
+  const variantLabelProvided = Object.prototype.hasOwnProperty.call(
+    parsed.data,
+    "variantLabel"
+  );
+  const variantImageProvided = Object.prototype.hasOwnProperty.call(
+    parsed.data,
+    "variantImage"
+  );
+  const normalizedVariantLabel = variantLabelProvided
+    ? normalizeVariantValue(variantLabel)
+    : undefined;
+  const normalizedVariantImage = variantImageProvided
+    ? normalizeVariantValue(variantImage)
+    : undefined;
 
   // Diferencias (lo que hay que borrar del disco)
   const toDelete =
@@ -1083,6 +1205,47 @@ export const updateProduct = async (req: Request, res: Response) => {
       const normalizedSku = normalizeSkuValue(sku);
       if (normalizedSku !== undefined) {
         payload.sku = normalizedSku;
+      }
+
+      let resolvedVariantGroupId: string | null | undefined =
+        variantGroupIdProvided ? variantGroupId ?? null : existing.variantGroupId ?? null;
+
+      if (
+        resolvedVariantGroupId === null &&
+        !variantGroupIdProvided &&
+        (normalizedVariantLabel != null || normalizedVariantImage != null)
+      ) {
+        resolvedVariantGroupId = randomUUID();
+      }
+
+      if (resolvedVariantGroupId === null) {
+        if (
+          variantGroupIdProvided ||
+          variantLabelProvided ||
+          variantImageProvided
+        ) {
+          payload.variantGroupId = null;
+          payload.variantLabel = null;
+          payload.variantImage = null;
+        }
+      } else if (resolvedVariantGroupId) {
+        const fallbackImages = newImages ?? existing.images ?? [];
+        const finalLabel =
+          normalizedVariantLabel !== undefined
+            ? normalizedVariantLabel
+            : existing.variantLabel ?? null;
+        let finalImage =
+          normalizedVariantImage !== undefined
+            ? normalizedVariantImage
+            : existing.variantImage ?? null;
+
+        if (finalImage == null) {
+          finalImage = fallbackImages[0] ?? null;
+        }
+
+        payload.variantGroupId = resolvedVariantGroupId;
+        payload.variantLabel = finalLabel;
+        payload.variantImage = finalImage;
       }
 
       // Reemplaza categorias si se envian

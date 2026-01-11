@@ -14,6 +14,20 @@ const skuSchema = z.preprocess(
   z.string().trim().optional().nullable()
 );
 
+const optionalTrimmedString = z.preprocess(
+  (value) => {
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      return trimmed === "" ? undefined : trimmed;
+    }
+    if (value === null) {
+      return null;
+    }
+    return value;
+  },
+  z.string().trim().optional().nullable()
+);
+
 export const productStatusSchema = z.enum(["active", "inactive", "draft"]);
 
 export const productSchema = z.object({
@@ -30,6 +44,9 @@ export const productSchema = z.object({
   status: productStatusSchema.default("active"),
   metaTitle: z.string().optional(),
   metaDescription: z.string().optional(),
+  variantGroupId: z.string().uuid().optional().nullable(),
+  variantLabel: optionalTrimmedString,
+  variantImage: optionalTrimmedString,
   storeId: z.string().uuid({ message: "storeId invalido" }),
   taxes: z.array(z.string().uuid("taxId invalido")).default([]),
   discountId: z.string().uuid("ID de descuento inválido").nullable().optional(),

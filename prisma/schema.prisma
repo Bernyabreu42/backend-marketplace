@@ -314,6 +314,9 @@ model Product {
   metaTitle       String?
   metaDescription String?
   isFeatured      Boolean       @default(false)
+  variantGroupId  String?
+  variantLabel    String?
+  variantImage    String?
 
   // Relación con Descuentos
   discountId String?

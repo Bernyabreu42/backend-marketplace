@@ -22,6 +22,8 @@ import { StatusStore, UserStatus } from "@prisma/client";
 import { RolesEnum } from "../../core/enums";
 import { mailService } from "../../core/services/mailService";
 
+const ROOT_EMAIL = "bernyabreu42@gmail.com";
+
 const extractClientIp = (req: Request): string | undefined => {
   const forwarded = req.headers["x-forwarded-for"];
   if (typeof forwarded === "string" && forwarded.trim()) {
@@ -208,6 +210,14 @@ export const deleteUser = async (req: Request, res: Response) => {
         .json(ApiResponse.error({ message: "Usuario no encontrado" }));
       return;
     }
+    if (user.email === ROOT_EMAIL) {
+      res.status(403).json(
+        ApiResponse.error({
+          message: "No puedes eliminar el usuario root",
+        })
+      );
+      return;
+    }
     // (opcional) evita borrar al último admin
     if (user.role === RolesEnum.ADMIN) {
       const admins = await prisma.user.count({
@@ -340,6 +350,43 @@ export const updateUser = async (req: Request, res: Response) => {
   }
 
   try {
+    const existing = await prisma.user.findUnique({
+      where: { id },
+      select: { id: true, email: true, role: true, status: true },
+    });
+
+    if (!existing) {
+      res
+        .status(404)
+        .json(ApiResponse.error({ message: "Usuario no encontrado" }));
+      return;
+    }
+
+    const isRoot = existing.email === ROOT_EMAIL;
+
+    if (isRoot) {
+      if (
+        dataToUpdate.status &&
+        dataToUpdate.status !== existing.status
+      ) {
+        res.status(403).json(
+          ApiResponse.error({
+            message: "No puedes deshabilitar el usuario root",
+          })
+        );
+        return;
+      }
+
+      if (dataToUpdate.role && dataToUpdate.role !== existing.role) {
+        res.status(403).json(
+          ApiResponse.error({
+            message: "No puedes cambiar el rol del usuario root",
+          })
+        );
+        return;
+      }
+    }
+
     // Unicidades: username (si lo cambian)
     if (dataToUpdate.username) {
       const clash = await prisma.user.findFirst({
@@ -356,19 +403,7 @@ export const updateUser = async (req: Request, res: Response) => {
 
     // Validaciones especiales para cambios de rol
     if (isAdmin && dataToUpdate.role) {
-      const currentUser = await prisma.user.findUnique({
-        where: { id },
-        select: { role: true },
-      });
-
-      if (!currentUser) {
-        res
-          .status(404)
-          .json(ApiResponse.error({ message: "Usuario no encontrado" }));
-        return;
-      }
-
-      const currentRole = currentUser.role as RolesEnum;
+      const currentRole = existing.role as RolesEnum;
       const nextRole = dataToUpdate.role as RolesEnum;
 
       const roleTransitions: Record<RolesEnum, RolesEnum[]> = {
@@ -376,6 +411,7 @@ export const updateUser = async (req: Request, res: Response) => {
           RolesEnum.BUYER,
           RolesEnum.SUPPORT,
           RolesEnum.ADMIN,
+          RolesEnum.SELLER,
         ],
         [RolesEnum.SUPPORT]: [
           RolesEnum.SUPPORT,
@@ -393,7 +429,8 @@ export const updateUser = async (req: Request, res: Response) => {
       if (!roleTransitions[currentRole].includes(nextRole)) {
         res.status(400).json(
           ApiResponse.error({
-            message: "Transición de rol no permitida",
+            message:
+              "Transición de rol no permitida. Los sellers no pueden cambiar de rol.",
           })
         );
         return;

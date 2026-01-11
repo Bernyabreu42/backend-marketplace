@@ -189,6 +189,7 @@ export const getFeaturedStores = async (_req: Request, res: Response) => {
     const baseWhere = {
       isDeleted: false,
       status: "active" as const,
+      products: { some: { status: "active" as const } },
     };
 
     const selection = {
@@ -235,7 +236,7 @@ export const getFeaturedStores = async (_req: Request, res: Response) => {
     const fetchProductSummaries = async (productIds: string[]) => {
       if (productIds.length === 0) return [];
       const products = await prisma.product.findMany({
-        where: { id: { in: productIds } },
+        where: { id: { in: productIds }, status: "active" },
         select: {
           id: true,
           name: true,
@@ -261,6 +262,7 @@ export const getFeaturedStores = async (_req: Request, res: Response) => {
       const products = await prisma.product.findMany({
         where: {
           storeId,
+          status: "active",
           id: excludeIds.length ? { notIn: excludeIds } : undefined,
         },
         orderBy: { createdAt: "desc" },

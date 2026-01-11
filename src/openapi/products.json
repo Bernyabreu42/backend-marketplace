@@ -594,6 +594,31 @@
               "out_of_stock"
             ]
           },
+          "variantGroupId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "variantLabel": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "variantImage": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "variants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProductVariantSummary"
+            }
+          },
           "favoritesCount": {
             "type": "integer",
             "example": 12
@@ -641,6 +666,24 @@
           },
           "slug": {
             "type": "string"
+          }
+        }
+      },
+      "ProductVariantSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "label": {
+            "type": "string"
+          },
+          "image": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -712,6 +755,25 @@
           "metaDescription": {
             "type": "string"
           },
+          "variantGroupId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "variantLabel": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "variantImage": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "storeId": {
             "type": "string",
             "format": "uuid"
@@ -775,6 +837,25 @@
           },
           "metaDescription": {
             "type": "string"
+          },
+          "variantGroupId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "variantLabel": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "variantImage": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },

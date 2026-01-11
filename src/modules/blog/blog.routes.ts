@@ -12,6 +12,17 @@ import {
 
 const router = Router();
 
+router.get(
+  "/admin",
+  routeProtector([RolesEnum.ADMIN, RolesEnum.SUPPORT]),
+  listBlogPosts
+);
+router.get(
+  "/admin/:slug",
+  routeProtector([RolesEnum.ADMIN, RolesEnum.SUPPORT]),
+  getBlogPostBySlug
+);
+
 router.get("/", listBlogPosts);
 router.get("/:slug", getBlogPostBySlug);
 

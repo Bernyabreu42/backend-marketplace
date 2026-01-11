@@ -80,7 +80,7 @@ export const IdParamSchema = z.object({
 
 export const PromoModalCreateSchema = z.object({
   title: z.string().max(120).optional().nullable(),
-  description: z.string().max(400).optional().nullable(),
+  description: z.string().max(1000).optional().nullable(),
   imageUrl: urlOrPath,
   altText: z.string().max(160).optional().nullable(),
   targetUrl: optionalUrlOrPath,
