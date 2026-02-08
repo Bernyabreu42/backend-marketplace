@@ -10406,7 +10406,7 @@
   },
   "servers": [
     {
-      "url": "https://api.marketplace.bernyabreu.dev",
+      "url": "https://api.marketplacegord.com",
       "description": "Render"
     },
     {
